@@ -18,6 +18,7 @@ import requests
 from app.applications import TIMEZONE
 
 BUTTON_PREFIX = "t:"
+PAUSE_PREFIX = "p:"
 KEEP_DAYS = 3
 MAX_MESSAGE = 3900
 RETRIES = 3
@@ -99,8 +100,12 @@ def remember_alert(con, match):
                 (key, json.dumps(job),
                  datetime.now(TIMEZONE).isoformat(timespec="minutes")))
     con.commit()
-    return [[{"text": "✨ Tailor my resume",
-              "callback_data": BUTTON_PREFIX + key}]]
+    buttons = []
+    if match.get("description"):       # tailoring needs the job description
+        buttons.append({"text": "✨ Tailor my resume",
+                        "callback_data": BUTTON_PREFIX + key})
+    buttons.append({"text": "🔕 Pause company", "callback_data": PAUSE_PREFIX + key})
+    return [buttons]
 
 
 def find_alert(con, key):
@@ -118,7 +123,7 @@ def get_taps():
     taps, other = [], 0
     for u in updates:
         q = u.get("callback_query")
-        if not q or not q.get("data", "").startswith(BUTTON_PREFIX):
+        if not q or not q.get("data", "").startswith((BUTTON_PREFIX, PAUSE_PREFIX)):
             continue
         chat = str(q.get("message", {}).get("chat", {}).get("id", "")).strip()
         if chat == my_chat():
@@ -223,9 +228,31 @@ def tailor_job(job):
                      "The edit list was too long to show.")
 
 
+def handle_pause(con, q):
+    """🔕 tap: stop alerts from that company for a while."""
+    from app.cooldown import pause, pretty
+    job = find_alert(con, q["data"][len(PAUSE_PREFIX):])
+    if not job:
+        telegram("answerCallbackQuery", callback_query_id=q["id"],
+                 text="That alert is too old to pause from.")
+        return
+    until = pause(con, job["company"])
+    telegram("answerCallbackQuery", callback_query_id=q["id"],
+             text=f"🔕 Paused {job['company']} until {pretty(until)}")
+    send_message(f"🔕 No more alerts from <b>{html.escape(job['company'])}</b> "
+                 f"until {pretty(until)}.")
+    print("Tap: paused a company", flush=True)
+
+
 def process_taps(con):
-    """Handle every pending tap. Returns how many were handled."""
-    updates, taps = get_taps()
+    """Handle every pending tap. Returns how many resumes were tailored."""
+    updates, all_taps = get_taps()
+    taps = []
+    for q in all_taps:
+        if q["data"].startswith(PAUSE_PREFIX):
+            handle_pause(con, q)
+        else:
+            taps.append(q)
     for q in taps:
         telegram("answerCallbackQuery", callback_query_id=q["id"],
                  text="⏳ Tailoring now. PDFs arrive in a few minutes.")
@@ -248,7 +275,8 @@ def process_taps(con):
 
 
 def has_taps():
-    return bool(get_taps()[1])
+    """True if a "Tailor" tap is waiting (pause taps don't need LaTeX)."""
+    return any(q["data"].startswith(BUTTON_PREFIX) for q in get_taps()[1])
 
 
 if __name__ == "__main__":

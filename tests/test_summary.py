@@ -27,3 +27,17 @@ def test_summary_sent_once_after_8pm(monkeypatch, tmp_path):
     assert summary.maybe_send_summary(con, sent.append) is True
     assert summary.maybe_send_summary(con, sent.append) is False
     assert len(sent) == 1
+
+
+def test_applications_counted_from_tracker(monkeypatch, tmp_path):
+    from app import applications, backup
+    monkeypatch.setenv("APPS_REPO_TOKEN", "x")
+    monkeypatch.setattr(backup, "restore", lambda: None)
+    monkeypatch.setattr(backup, "refresh", lambda **k: None)
+    monkeypatch.setattr(applications, "read_tracker", lambda: [
+        {"date": "2026-11-02", "company": "A"}, {"date": "2026-11-02", "company": "B"},
+        {"date": "2026-10-30", "company": "C"}, {"date": "2026-10-01", "company": "D"}])
+    assert summary.tracker_counts("2026-11-02") == (2, 3)
+    assert "Applications today: 2 / 23" in summary.applied_line(0, (2, 3))
+    assert "this week: 3" in summary.applied_line(0, (2, 3))
+    assert "logged: 1 / 23" in summary.applied_line(1, None)

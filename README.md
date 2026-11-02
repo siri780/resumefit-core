@@ -1,6 +1,6 @@
 # ResumeFit: Real-Time LLM Resume Tailoring with Hallucination Guardrails
 
-ResumeFit watches **48 company job boards** (including Google and Microsoft) plus job-alert emails from Google, Microsoft,
+ResumeFit watches **77 company job boards** (including Google and Microsoft) plus job-alert emails from Google, Microsoft,
 Meta, Apple and LinkedIn, alerts me on my phone within minutes of a relevant posting, scores the right
 one of my three base resumes against it, and tailors it with an LLM on one tap, while a
 **rule-based guard blocks any invented fact**.

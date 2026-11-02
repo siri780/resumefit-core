@@ -42,7 +42,31 @@ def record_alert(con, match):
     bump(con, "alerts")
 
 
-def summary_text(con, day=None):
+def tracker_counts(day):
+    """(applied today, applied in the last 7 days) from your tracker.
+
+    Counts every application in the tracker: ones saved in the web app and
+    ones logged from confirmation emails. Returns None if the private
+    tracker repo isn't connected."""
+    import os
+    from datetime import date, timedelta
+    if not os.getenv("APPS_REPO_TOKEN"):
+        return None
+    from app.applications import read_tracker
+    from app.backup import refresh, restore
+    try:
+        restore()
+        refresh(every_seconds=0)
+        rows = read_tracker()
+    except Exception as error:
+        print(f"Summary: couldn't read tracker: {type(error).__name__}", flush=True)
+        return None
+    week_start = (date.fromisoformat(day) - timedelta(days=6)).isoformat()
+    dates = [(r.get("date") or "")[:10] for r in rows]
+    return sum(d == day for d in dates), sum(week_start <= d <= day for d in dates)
+
+
+def summary_text(con, day=None, counts_from_tracker=True):
     setup(con)
     day = day or today()
     counts = dict(con.execute("SELECT name, value FROM daily WHERE day = ?",
@@ -53,9 +77,14 @@ def summary_text(con, day=None):
     lines = ["📊 <b>ResumeFit · today</b>",
              f"🆕 Job alerts sent: {counts.get('alerts', 0)}",
              f"✨ Resumes tailored: {counts.get('tailored', 0)}",
-             f"📬 Applications logged: {counts.get('applied', 0)} / {DAILY_GOAL} "
-             "daily goal (≈700 a month)",
+             applied_line(counts.get('applied', 0),
+                          tracker_counts(day) if counts_from_tracker else None),
              f"❌ Rejections: {counts.get('rejected', 0)}"]
+    from app.cooldown import paused_now, pretty
+    paused = paused_now(con)
+    if paused:
+        lines.append("🔕 Paused: " + ", ".join(f"{e(n)} (until {pretty(u)})"
+                                              for n, u in paused[:8]))
     if best:
         lines.append("\n<b>Today's best matches</b> (apply if you haven't):")
         for company, title, url in best:
@@ -63,6 +92,16 @@ def summary_text(con, day=None):
     else:
         lines.append("\nNo new matching jobs today.")
     return "\n".join(lines)
+
+
+def applied_line(counter, tracked):
+    """Applications today: the tracker is the source of truth when available."""
+    if tracked is None:
+        return (f"📬 Applications logged: {counter} / {DAILY_GOAL} daily goal "
+                "(≈700 a month)")
+    today_n, week_n = tracked
+    return (f"📬 Applications today: {max(today_n, counter)} / {DAILY_GOAL} goal · "
+            f"this week: {week_n} / {DAILY_GOAL * 7}")
 
 
 def maybe_send_summary(con, send):

@@ -1,3 +1,4 @@
+import html
 import sys
 import time
 from datetime import datetime, timedelta
@@ -8,6 +9,7 @@ from app.scan import connect, scan, scan_email
 from app.summary import bump, maybe_send_summary, record_alert
 from app.app_emails import sync_applications, sync_message
 from app.taps import process_taps, remember_alert, send_message
+from app.cooldown import LIMIT, PAUSE_DAYS, WINDOW_DAYS, auto_pause, is_paused, pretty
 
 INTERVAL_SECONDS = 60
 SCAN_EVERY = timedelta(minutes=4, seconds=30)
@@ -52,12 +54,6 @@ def run_once():
     mail_matches, mail_errors = scan_email(con)
     errors += mail_errors
     matches = mail_matches + matches
-    for match in matches[:MAX_ALERTS]:
-        # The Tailor button needs the job description to work with.
-        buttons = (remember_alert(con, match) if match.get("description")
-                   else None)
-        send_message(format_alert(match), buttons)
-        record_alert(con, match)
     try:
         synced = sync_applications(con)
     except Exception as error:
@@ -68,6 +64,13 @@ def run_once():
         send_message(sync_message(added, rejected))
         bump(con, "applied", added_today)
         bump(con, "rejected", len(rejected))
+    newly_paused = pause_busy_companies(con)
+    if newly_paused:
+        send_message(pause_message(newly_paused))
+    matches = [m for m in matches if not is_paused(con, m["company"])]
+    for match in matches[:MAX_ALERTS]:
+        send_message(format_alert(match), remember_alert(con, match))
+        record_alert(con, match)
     if len(matches) > MAX_ALERTS:
         send_telegram(f"…and {len(matches) - MAX_ALERTS} more new matches.")
     print(f"[{now}] checked {total} jobs · {len(matches)} matches · "
@@ -76,6 +79,29 @@ def run_once():
     if errors:
         print("Errors: " + "; ".join(errors), flush=True)
     warn_if_gmail_disconnected(con, errors)
+
+
+def pause_busy_companies(con):
+    """Pause companies you've already applied to LIMIT+ times recently."""
+    import os
+    if not os.getenv("APPS_REPO_TOKEN"):
+        return []
+    from app.applications import read_tracker
+    from app.backup import refresh, restore
+    try:
+        restore()
+        refresh(every_seconds=0)
+        return auto_pause(con, read_tracker())
+    except Exception as error:
+        print(f"Cooldown check failed: {type(error).__name__}", flush=True)
+        return []
+
+
+def pause_message(newly):
+    lines = [f"🔕 <b>Paused alerts</b> from companies with {LIMIT}+ applications "
+             f"in the last {WINDOW_DAYS} days (for {PAUSE_DAYS} days):"]
+    lines += [f"• {html.escape(name)} until {pretty(until)}" for name, until in newly]
+    return "\n".join(lines)
 
 
 GMAIL_WARNING = ("⚠️ <b>Gmail is disconnected</b>, so job-alert emails (Meta, "

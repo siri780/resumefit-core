@@ -135,10 +135,10 @@
             \resumeItem{Flagged 548 suspected review campaigns via connected components and explained predictions with SHAP.}
           \resumeItemListEnd
       \resumeProjectHeading
-          {\textbf{Pneumonia Detection from Chest X-Rays} $|$ \emph{Python, TensorFlow, Keras, OpenCV, Flask}}{\href{https://github.com/siri780/Pneumonia-Detection-from-Chest-X-Rays-Using-CNN}{\underline{GitHub}}}
+          {\textbf{Medical Text Router -- Small vs. Large Model} $|$ \emph{PyTorch, Hugging Face, LoRA, Qwen2.5-7B}}{\href{https://github.com/siri780/medical-text-router}{\underline{GitHub}}}
           \resumeItemListStart
-            \resumeItem{Trained a CNN on 5,863 chest X-ray images to classify pneumonia, achieving 92.07\% accuracy and 91.41\% precision on the test set, evaluated with a confusion matrix.}
-            \resumeItem{Deployed the model in a Flask web app that returns a prediction and confidence score for an uploaded X-ray in under 3 seconds.}
+            \resumeItem{Fine-tuned PubMedBERT with LoRA (0.54\% of weights) on 14K PubMed abstracts, reaching 0.657 macro-F1, above the published 0.644 baseline and 8.5 points above a 7B LLM at about 1/90th of the compute.}
+            \resumeItem{Evaluated confidence-based routing and ensembling against a zero-shot 7B model on a fixed test set, reporting F1, compute per 1,000 requests and a 0.72 oracle ceiling.}
           \resumeItemListEnd
     \resumeSubHeadingListEnd
 
@@ -148,7 +148,7 @@
     \small{\item{
      \textbf{Languages \& CS}{: Python, SQL, R, Java, C, C++, Data Structures \& Algorithms} \\
      \textbf{ML \& AI}{: Machine Learning, Deep Learning (CNNs), LLMs, NLP, Structured Outputs, Model Evaluation, Explainable AI (SHAP), Graph Analytics, Fraud Detection, Feature Engineering, Classification, Regression, Random Forest, Statistical Modeling, Causal Inference} \\
-     \textbf{Libraries}{: TensorFlow/Keras, scikit-learn, PySpark, Spark MLlib, GraphFrames, OpenCV, pandas, NumPy, Pydantic, Matplotlib} \\
+     \textbf{Libraries}{: PyTorch, Hugging Face Transformers, PEFT/LoRA, TensorFlow/Keras, scikit-learn, PySpark, Spark MLlib, GraphFrames, OpenCV, pandas, NumPy, Pydantic, Matplotlib} \\
      \textbf{Tools}{: Distributed Computing (Spark, MPI), OpenAI API, Flask, Streamlit, GitHub Actions, Git, SQLite, MySQL, pytest, Jupyter} \\
      \textbf{Leadership}{: Vice President, Robotics Club (2023--2025), organized AI/ML hackathons and mentored 50+ students}
     }}

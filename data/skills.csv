@@ -79,3 +79,5 @@ OpenCV,opencv,library,no
 Graph Analytics,graph analytics|graph features|graphframes|networkx|pagerank|graph mining|network analysis,ml,no
 Explainable AI,explainable ai|explainability|model interpretability|interpretable|shap|xai,ml,no
 Fraud Detection,fraud detection|anomaly detection|fraud models|fraud modeling,ml,no
+Fine-Tuning,fine-tuning|fine tuning|finetuning|fine-tuned|fine tuned|lora|peft|qlora,ml,no
+Hugging Face,hugging face|huggingface|transformers library,library,no

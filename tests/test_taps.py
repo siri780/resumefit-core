@@ -100,3 +100,22 @@ def test_dropped_connection_is_retried_with_whole_file(monkeypatch, tmp_path):
     f = io.BytesIO(b"%PDF-1.5 resume")
     assert taps.telegram("sendDocument", files={"document": ("r.pdf", f)})["ok"]
     assert calls == [b"%PDF-1.5 resume", b"%PDF-1.5 resume"]
+
+
+def test_pause_button_pauses_company(monkeypatch, tmp_path):
+    from app import cooldown
+    from app.scan import connect
+    con = connect(tmp_path / "t.db")
+    buttons = taps.remember_alert(con, {"id": "x:1", "company": "Capital One",
+                                        "title": "DS", "description": ""})
+    labels = [b["text"] for b in buttons[0]]
+    assert labels == ["🔕 Pause company"]               # no description: no Tailor
+    pause_data = buttons[0][0]["callback_data"]
+    sent = []
+    monkeypatch.setattr(taps, "telegram", lambda method, **k: {"ok": True})
+    monkeypatch.setattr(taps, "send_message", lambda text, *a: sent.append(text))
+    monkeypatch.setattr(taps, "get_taps", lambda: (
+        [{"update_id": 1}], [{"id": "q1", "data": pause_data}]))
+    assert taps.process_taps(con) == 0                  # nothing tailored
+    assert cooldown.is_paused(con, "capital one")
+    assert "Capital One" in sent[0]
