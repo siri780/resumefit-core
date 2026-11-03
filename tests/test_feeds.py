@@ -132,3 +132,44 @@ def test_microsoft_rate_limit_keeps_going_next_run():
         assert feeds.microsoft("Microsoft") == []
     finally:
         feeds.requests.get, feeds.time.sleep = old, old_sleep
+
+
+# ---------- Apple (shape copied from the real search page) ----------
+def _apple_page(results):
+    import json
+    data = {"loaderData": {"root": {}, "search": {"searchResults": results, "totalRecords": len(results)}}}
+    return ("<script>window.__staticRouterHydrationData = JSON.parse(" +
+            json.dumps(json.dumps(data)) + ");</script>")
+
+
+APPLE_JOB = {"id": "200692043-2459", "jobSummary": "Build ML platform features.",
+             "locations": [{"name": "New York City", "countryName": "United States of America"}],
+             "postingTitle": "ML Engineer - Ads", "postDateInGMT": "2026-11-03T11:19:00.863Z",
+             "transformedPostingTitle": "ml-engineer-ads", "postExternal": True}
+
+
+def test_apple_search_page():
+    from app.feeds import apple_jobs_from_page
+    hidden = dict(APPLE_JOB, id="1-1", postExternal=False)
+    (job,) = apple_jobs_from_page(_apple_page([APPLE_JOB, hidden]))
+    assert job["id"] == "Apple:200692043-2459"
+    assert job["location"] == "New York City, United States of America"
+    assert job["url"] == "https://jobs.apple.com/en-us/details/200692043-2459/ml-engineer-ads"
+    assert job["description"] == "Build ML platform features."
+
+
+def test_apple_full_description_fetched_once(monkeypatch):
+    from app import feeds
+    (job,) = feeds.apple_jobs_from_page(_apple_page([APPLE_JOB]))
+
+    class R:
+        ok = True
+        text = _apple_page([dict(APPLE_JOB, description="Long description here.",
+                                 minimumQualifications="SQL and Python.")])
+
+    calls = []
+    monkeypatch.setattr(feeds.requests, "get", lambda *a, **k: calls.append(1) or R())
+    text = feeds.job_description(job)
+    assert "SQL and Python" in text and "Long description" in text
+    feeds.job_description(job)
+    assert len(calls) == 1

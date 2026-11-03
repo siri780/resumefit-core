@@ -100,6 +100,17 @@ def workday(company, careers_url):
 
 def job_description(job):
     """Fetch a Workday job's description only when it's actually needed."""
+    if job.get("detail_kind") == "apple":       # has a summary; fetch the full text once
+        summary = job["description"]
+        try:
+            response = requests.get(job["detail_api"], headers=BROWSER, timeout=TIMEOUT)
+            texts = _texts(apple_page_data(response.text), APPLE_TEXT_KEYS) if response.ok else []
+        except (requests.RequestException, ValueError):
+            texts = []
+        full = clean(" ".join(dict.fromkeys(texts)))      # dedupe, keep order
+        job["description"] = full if len(full) > len(summary) else summary
+        job["detail_kind"] = "apple-done"
+        return job["description"]
     if job["description"] or not job.get("detail_api"):
         return job["description"]
     if job.get("detail_kind") == "microsoft":
@@ -250,10 +261,78 @@ def microsoft(company, slug=""):
     return jobs
 
 
+APPLE_SEARCH = "https://jobs.apple.com/en-us/search"
+APPLE_DATA = re.compile(r'window\.__staticRouterHydrationData\s*=\s*JSON\.parse\(("(?:[^"\\]|\\.)*")\)', re.S)
+APPLE_TEXT_KEYS = ("jobSummary", "description", "responsibilities", "minimumQualifications",
+                   "preferredQualifications", "keyQualifications", "educationAndExperience")
+
+
+def apple_page_data(page):
+    """The JSON that Apple's careers pages embed for their own app."""
+    m = APPLE_DATA.search(page)
+    if not m:
+        raise ValueError("Apple Careers page layout changed")
+    return json.loads(json.loads(m.group(1)))
+
+
+def apple_jobs_from_page(page, company="Apple"):
+    """Jobs listed on one Apple Careers search page."""
+    data = apple_page_data(page)
+    results = ((data.get("loaderData") or {}).get("search") or {}).get("searchResults") or []
+    jobs = []
+    for j in results:
+        if not j.get("postExternal", True):
+            continue
+        places = [", ".join(x for x in (p.get("name"), p.get("countryName")) if x)
+                  for p in j.get("locations") or []]
+        job = make_job(company, j["id"], j.get("postingTitle", ""), "; ".join(places),
+                       f"https://jobs.apple.com/en-us/details/{j['id']}/"
+                       f"{j.get('transformedPostingTitle', '')}",
+                       j.get("postDateInGMT"), j.get("jobSummary", ""))
+        job["detail_api"] = job["url"]          # full text fetched only when needed
+        job["detail_kind"] = "apple"
+        jobs.append(job)
+    return jobs
+
+
+def apple(company, slug=""):
+    """Apple Careers search (U.S., newest first), read from the public pages."""
+    jobs, seen = [], set()
+    for query in SEARCHES:
+        for page in (1, 2):
+            response = requests.get(APPLE_SEARCH, headers=BROWSER, timeout=TIMEOUT,
+                                    params={"search": query, "sort": "newest",
+                                            "location": "united-states-USA", "page": page})
+            response.raise_for_status()
+            found = apple_jobs_from_page(response.text, company)
+            for job in found:
+                if job["id"] not in seen:
+                    seen.add(job["id"])
+                    jobs.append(job)
+            if len(found) < 20:
+                break
+    return jobs
+
+
+def _texts(obj, keys):
+    """Every string stored under one of `keys`, anywhere in nested JSON."""
+    out = []
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if k in keys and isinstance(v, str):
+                out.append(v)
+            else:
+                out += _texts(v, keys)
+    elif isinstance(obj, list):
+        for v in obj:
+            out += _texts(v, keys)
+    return out
+
+
 READERS = {"greenhouse": greenhouse, "lever": lever, "ashby": ashby,
            "workday": workday, "amazon": amazon, "google": google,
-           "microsoft": microsoft}
-SLOW_SOURCES = {"workday", "amazon", "google", "microsoft"}  # every ~30 minutes
+           "microsoft": microsoft, "apple": apple}
+SLOW_SOURCES = {"workday", "amazon", "google", "microsoft", "apple"}  # every ~30 minutes
 
 
 def load_companies():
