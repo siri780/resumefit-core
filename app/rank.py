@@ -89,13 +89,30 @@ def in_us(location):
                 or has_any(low, US_CITIES) or US_ABBR.search(location))
 
 
+# More countries and big foreign cities, matched as whole words.
+FOREIGN_WORDS = re.compile(r"\b(" + "|".join([
+    "afghanistan", "albania", "algeria", "angola", "armenia", "azerbaijan", "bahrain",
+    "bangladesh", "belarus", "bolivia", "bosnia", "botswana", "bulgaria", "cambodia",
+    "cameroon", "croatia", "cyprus", "ecuador", "el salvador", "ethiopia", "ghana",
+    "guatemala", "honduras", "iceland", "iran", "iraq", "jamaica", "kazakhstan", "kuwait",
+    "kyrgyzstan", "laos", "latvia", "libya", "malta", "mauritius", "moldova", "mongolia",
+    "montenegro", "morocco", "mozambique", "myanmar", "namibia", "nepal", "nicaragua",
+    "north macedonia", "oman", "pakistan", "paraguay", "peru", "qatar", "rwanda", "senegal",
+    "serbia", "slovakia", "slovenia", "sri lanka", "sudan", "tanzania", "tunisia", "uganda",
+    "uruguay", "uzbekistan", "venezuela", "zambia", "zimbabwe", "doha", "riyadh", "jeddah",
+    "abu dhabi", "cairo", "lagos", "nairobi", "karachi", "lahore", "islamabad", "dhaka",
+    "colombo", "kathmandu", "lima", "quito", "montevideo", "cape town", "johannesburg",
+    "tallinn", "riga", "vilnius", "sofia", "belgrade", "zagreb", "kyiv", "kiev",
+    "amman", "beirut", "casablanca", "almaty", "tbilisi", "yerevan", "baku"]) + r")\b")
+
+
 def outside_us(location):
     """True only when the location is clearly somewhere else.
 
     A two-letter code like "IN" alone doesn't count as U.S. when the
     location also names a foreign place (e.g. "Pune, IN")."""
     low = location.lower()
-    if not has_any(low, FOREIGN):
+    if not (has_any(low, FOREIGN) or FOREIGN_WORDS.search(low)):
         return False
     strong_us = (US_WORDS.search(low) or has_any(low, US_STATES)
                  or has_any(low, US_CITIES))

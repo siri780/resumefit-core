@@ -59,3 +59,13 @@ def test_knockouts():
 def test_knocked_out_jobs_are_hidden():
     result = assess(job("Data Scientist I", description="We do not sponsor visas."), 95)
     assert result["blocked"] and not result["show"]
+
+
+def test_more_foreign_locations_are_skipped():
+    from app.rank import outside_us
+    assert outside_us("Kuwait City, Kuwait")
+    assert outside_us("Doha, Qatar")
+    assert outside_us("Lima, Peru")
+    assert not outside_us("Lima, Ohio")              # a U.S. state wins
+    assert not outside_us("New York, NY")
+    assert not outside_us("Remote - United States")
