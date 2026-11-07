@@ -68,6 +68,13 @@ def run_once():
     if newly_paused:
         send_message(pause_message(newly_paused))
     matches = [m for m in matches if not is_paused(con, m["company"])]
+    if first_scan(con):
+        for match in matches:
+            record_alert(con, match)
+        send_message(f"✅ ResumeFit is set up here. Saved {total} current jobs "
+                     "quietly; you'll get alerts for new ones from now on.")
+        print(f"[{now}] first run: saved {total} jobs without alerts", flush=True)
+        return
     for match in matches[:MAX_ALERTS]:
         send_message(format_alert(match), remember_alert(con, match))
         record_alert(con, match)
@@ -79,6 +86,12 @@ def run_once():
     if errors:
         print("Errors: " + "; ".join(errors), flush=True)
     warn_if_gmail_disconnected(con, errors)
+
+
+def first_scan(con):
+    """True only on the very first scan with a fresh database (for example,
+    after moving the watcher to a new repo), so old jobs don't flood you."""
+    return due(con, "seeded", timedelta(days=36500))
 
 
 def pause_busy_companies(con):

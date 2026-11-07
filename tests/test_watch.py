@@ -22,3 +22,10 @@ def test_gmail_warning_once_a_day(tmp_path, monkeypatch):
     watch.warn_if_gmail_disconnected(con, ["Gmail: RefreshError"])
     watch.warn_if_gmail_disconnected(con, ["Gmail: RefreshError"])
     assert len(sent) == 1 and "Gmail is disconnected" in sent[0]
+
+
+def test_first_scan_only_once(tmp_path):
+    from app.watch import first_scan
+    con = connect(tmp_path / "t.db")
+    assert first_scan(con) is True
+    assert first_scan(con) is False

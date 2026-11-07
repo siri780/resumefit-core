@@ -1,8 +1,8 @@
 name: Job watcher
 
+# The watcher now runs from the public repo siri780/resumefit, which pulls
+# this private code. This copy only runs when started by hand.
 on:
-  schedule:
-    - cron: "*/5 * * * *"
   workflow_dispatch:
 
 concurrency:
