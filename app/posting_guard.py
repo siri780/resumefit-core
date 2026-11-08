@@ -23,7 +23,7 @@ INSTRUCTION = re.compile(
     r"|bot|automated (tool|system))( (model|assistant|tool|system|agent))?"
     r"\s*(,|reading|screening|reviewing|parsing|evaluating|processing)"
     r"|\bas an? (ai|llm|large language model|language model)( model| assistant)?\s*,"
-    r"|\b(system|hidden|secret) (prompt|instructions)\b"
+    r"|\b(hidden|secret) (prompt|instructions)\b"
     r"|\b(include|insert|mention|say|write) the (exact |secret |hidden )?"
     r"(word|phrase|code word|codeword)\b"
     r"|\bdo not (reveal|tell|mention|disclose) (these instructions|that you are an? ai)\b",

@@ -18,7 +18,9 @@ def test_real_job_ad_phrases_are_not_flagged():
                  "As an AI/ML Specialist Solutions Architect, you will lead.",
                  "If you are an AI researcher who loves data, apply.",
                  "Use GenAI, ML, MLOps and LLMOps. Follow our coding guidelines.",
-                 "Add the keyword-matching service to our search stack."]:
+                 "Add the keyword-matching service to our search stack.",
+                 "You know how prompts and system instructions shape outputs.",
+                 "Design agent harnesses and tune system prompts."]:
         assert inspect(text) == [], text
 
 
