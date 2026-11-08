@@ -29,6 +29,10 @@ def format_alert(match):
     else:
         score_line = (f"🎯 {match['tier']} · ATS {match['ats']}% · "
                       f"score {match['score']}\n")
+    from app.posting_guard import inspect
+    flags = inspect(match.get("description", ""), match.get("hidden_html", False))
+    warning = (f"⚠️ Posting check: {e(', '.join(flags))}. Kept out of "
+               "tailoring; skim the posting yourself.\n" if flags else "")
     via = (f"📧 From your {e(match.get('via') or match['company'])} "
            "job-alert email\n" if match.get("source") == "email" else "")
     return (
@@ -39,7 +43,8 @@ def format_alert(match):
         f"{' (title unclear, picked by match)' if match.get('base_how') == 'match' else ''}\n"
         f"🛂 {e(match['sponsorship'])}\n"
         f"❌ Missing: {e(missing)}\n"
-        f"🔗 <a href=\"{e(match['url'])}\">Open job</a>"
+        + warning
+        + f"🔗 <a href=\"{e(match['url'])}\">Open job</a>"
     )
 
 

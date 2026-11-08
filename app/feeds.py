@@ -33,9 +33,13 @@ def clean(text):
 
 def make_job(company, job_id, title, location, url, posted, description):
     """One job in the same shape, whichever system it came from."""
-    return {"id": f"{company}:{job_id}", "company": company, "title": title,
-            "location": location or "", "url": url, "posted": posted or "",
-            "description": clean(description)}
+    from app.posting_guard import has_hidden_html
+    job = {"id": f"{company}:{job_id}", "company": company, "title": title,
+           "location": location or "", "url": url, "posted": posted or "",
+           "description": clean(description)}
+    if has_hidden_html(description):
+        job["hidden_html"] = True
+    return job
 
 
 def greenhouse(company, slug):

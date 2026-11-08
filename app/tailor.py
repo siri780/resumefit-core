@@ -64,6 +64,8 @@ def load_approved():
 
 def tailor(bullets, jd, resume_skills, skills, missing):
     """Get AI suggestions and run every one through the guard."""
+    from app.posting_guard import sanitize
+    jd = sanitize(jd)                 # never let hidden AI instructions through
     allowed = resume_skills | load_approved()
     results = []
     for s in suggest_edits(bullets, jd, allowed, missing):
