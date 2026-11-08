@@ -74,7 +74,7 @@ CREDENTIALS = re.compile(r"\b(asa|fsa|maaa|cpa|cfa|cissp|cism|pmp|"
 OPTIONAL_HINTS = ["prefer", "plus", "nice to have", "bonus", "desired",
                   "working toward", "progress toward", "or equivalent"]
 
-MIN_MATCH = {"Target": 0, "Stretch": 60, "Reach": 75, "Long shot": 85}
+MIN_MATCH = {"Target": 75, "Stretch": 75, "Reach": 75, "Long shot": 85}
 TIER_POINTS = {"Target": 100, "Stretch": 70, "Reach": 40, "Long shot": 15}
 
 
