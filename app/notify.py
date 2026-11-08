@@ -30,7 +30,7 @@ def format_alert(match):
         score_line = (f"🎯 {match['tier']} · ATS {match['ats']}% · "
                       f"score {match['score']}\n")
     from app.posting_guard import inspect
-    flags = inspect(match.get("description", ""), match.get("hidden_html", False))
+    flags = inspect(match.get("description", ""))
     warning = (f"⚠️ Posting check: {e(', '.join(flags))}. Kept out of "
                "tailoring; skim the posting yourself.\n" if flags else "")
     via = (f"📧 From your {e(match.get('via') or match['company'])} "
