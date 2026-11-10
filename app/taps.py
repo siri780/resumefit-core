@@ -19,6 +19,7 @@ from app.applications import TIMEZONE
 
 BUTTON_PREFIX = "t:"
 PAUSE_PREFIX = "p:"
+COVER_PREFIX = "c:"
 KEEP_DAYS = 3
 MAX_MESSAGE = 3900
 RETRIES = 3
@@ -100,12 +101,14 @@ def remember_alert(con, match):
                 (key, json.dumps(job),
                  datetime.now(TIMEZONE).isoformat(timespec="minutes")))
     con.commit()
-    buttons = []
-    if match.get("description"):       # tailoring needs the job description
-        buttons.append({"text": "✨ Tailor my resume",
-                        "callback_data": BUTTON_PREFIX + key})
-    buttons.append({"text": "🔕 Pause company", "callback_data": PAUSE_PREFIX + key})
-    return [buttons]
+    rows = []
+    if match.get("description"):       # both need the job description
+        rows.append([{"text": "✨ Tailor my resume",
+                      "callback_data": BUTTON_PREFIX + key},
+                     {"text": "✉️ Cover letter",
+                      "callback_data": COVER_PREFIX + key}])
+    rows.append([{"text": "🔕 Pause company", "callback_data": PAUSE_PREFIX + key}])
+    return rows
 
 
 def find_alert(con, key):
@@ -123,7 +126,8 @@ def get_taps():
     taps, other = [], 0
     for u in updates:
         q = u.get("callback_query")
-        if not q or not q.get("data", "").startswith((BUTTON_PREFIX, PAUSE_PREFIX)):
+        if not q or not q.get("data", "").startswith(
+                (BUTTON_PREFIX, PAUSE_PREFIX, COVER_PREFIX)):
             continue
         chat = str(q.get("message", {}).get("chat", {}).get("id", "")).strip()
         if chat == my_chat():
@@ -244,6 +248,32 @@ def handle_pause(con, q):
     print("Tap: paused a company", flush=True)
 
 
+def handle_cover(con, q):
+    """✉️ tap: write a cover letter and send it as a message to copy."""
+    from app.bases import DEFAULT, load_base
+    from app.cover_letter import write_letter
+    job = find_alert(con, q["data"][len(COVER_PREFIX):])
+    telegram("answerCallbackQuery", callback_query_id=q["id"],
+             text="✉️ Writing it now. It arrives in a minute or two."
+             if job else "That alert is too old.")
+    if not job:
+        return
+    try:
+        letter, removed = write_letter(job, load_base(job.get("base") or DEFAULT))
+    except Exception as error:
+        print(f"Tap: cover letter failed: {type(error).__name__}", flush=True)
+        send_message(f"⚠️ Couldn't write the cover letter for "
+                     f"{html.escape(job['company'])}: {html.escape(str(error))[:300]}")
+        return
+    note = (f"\n🚫 {len(removed)} sentence(s) removed by the guard "
+            "(they added facts not on your resume)." if removed else "")
+    send_message(f"✉️ <b>Cover letter · {html.escape(job['company'])}</b> · "
+                 f"{html.escape(job['title'])}\nUses your {html.escape(job.get('base') or DEFAULT)} "
+                 f"resume. Long-press the next message to copy it.{note}")
+    send_message(html.escape(letter)[:MAX_MESSAGE])
+    print("Tap: cover letter sent", flush=True)
+
+
 def process_taps(con):
     """Handle every pending tap. Returns how many resumes were tailored."""
     updates, all_taps = get_taps()
@@ -251,6 +281,8 @@ def process_taps(con):
     for q in all_taps:
         if q["data"].startswith(PAUSE_PREFIX):
             handle_pause(con, q)
+        elif q["data"].startswith(COVER_PREFIX):
+            handle_cover(con, q)
         else:
             taps.append(q)
     for q in taps:
