@@ -31,7 +31,7 @@ Data Visualization,data visualization|data visualisation|visualization|dashboard
 Data Analysis,data analysis|data analytics|analytics|exploratory data analysis|eda,analytics,no
 Data Mining,data mining,analytics,no
 Predictive Modeling,predictive modeling|predictive modelling|predictive models|predictive model|predictive analytics,ml,no
-Recommendation Systems,recommendation systems|recommender systems|recommendations,ml,no
+Recommendation Systems,recommendation systems|recommendation system|recommender systems|recommender system|recommendation engine|recommendation models|recsys,ml,no
 Model Deployment,model deployment|deploy models|deployed|mlops|production models,engineering,no
 ETL,etl|elt|data pipeline|data pipelines,engineering,no
 Data Warehousing,data warehouse|data warehousing|snowflake|redshift|bigquery,engineering,no
