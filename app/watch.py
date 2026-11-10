@@ -59,11 +59,13 @@ def run_once():
     except Exception as error:
         synced = None
         errors.append(f"Application emails: {type(error).__name__}")
-    if synced and (synced[0] or synced[1]):
-        added, rejected, added_today = synced
-        send_message(sync_message(added, rejected))
+    if synced and (synced[0] or synced[1] or synced[3]):
+        added, rejected, added_today, interviews = synced
+        send_message(sync_message(added, rejected, interviews))
         bump(con, "applied", added_today)
         bump(con, "rejected", len(rejected))
+        from app.interview_prep import send_packs
+        send_packs(con, interviews)
     newly_paused = pause_busy_companies(con)
     if newly_paused:
         send_message(pause_message(newly_paused))

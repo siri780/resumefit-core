@@ -17,6 +17,7 @@ QUERY_PHRASES = [
     '"officially applied"', '"your application for"',
     '"confirm that your application"', '"moving forward"',
     '"other candidates"', '"not been selected"', '"regret to inform"',
+    '"interview"', '"assessment"', '"next steps"', '"phone screen"',
 ]
 EXCLUDE = ("-from:linkedin.com -from:indeed.com -from:glassdoor.com "
            "-from:ziprecruiter.com -from:handshake.com")
@@ -29,6 +30,18 @@ REJECTED = [
     "regret to inform", "unable to offer you", "position has been filled",
     "decided not to proceed", "not to proceed with your",
     "not pursuing you", "other candidates who more closely",
+]
+INTERVIEW = [
+    "schedule an interview", "schedule your interview",
+    "invite you to interview", "invite you to an interview",
+    "invitation to interview", "interview invitation",
+    "phone screen", "technical screen", "recruiter screen", "next round",
+    "share your availability", "provide your availability", "your availability for",
+    "online assessment", "coding assessment", "technical assessment",
+    "complete the assessment", "invite you to complete", "coding challenge",
+    "hackerrank", "codesignal", "karat", "hirevue",
+    "would like to move forward with your application",
+    "excited to move forward with your application",
 ]
 APPLIED = [
     "thank you for applying", "thanks for applying", "received your application",
@@ -88,10 +101,12 @@ def is_decision(text, phrase):
 
 
 def classify(subject, body):
-    """'rejected', 'applied' or None."""
+    """'rejected', 'interview', 'applied' or None."""
     text = f"{subject}\n{body}".lower().replace("’", "'")
     if any(is_decision(text, p.replace("’", "'")) for p in REJECTED):
         return "rejected"
+    if any(p in text for p in INTERVIEW):
+        return "interview"
     if any(p in text for p in APPLIED):
         return "applied"
     return None
@@ -156,9 +171,11 @@ def same_job(row, company, role):
     return not b or a == b or a in b or b in a
 
 
-def apply_emails(rows, emails):
-    """Update tracker rows from parsed emails. Returns (rows, added, rejected)."""
+def apply_emails(rows, emails, interviews=None):
+    """Update tracker rows from parsed emails. Returns (rows, added, rejected).
+    Interview invites are added to `interviews` as (company, role) pairs."""
     added, rejected = [], []
+    interviews = [] if interviews is None else interviews
     for e in sorted(emails, key=lambda e: e["date"]):
         kind = classify(e["subject"], e["body"])
         if not kind:
@@ -172,6 +189,21 @@ def apply_emails(rows, emails):
                          "ats_before": "", "ats_after": "", "status": "Applied",
                          "link": "", "folder": "", "notes": "Logged from email"})
             added.append(f"{company} – {role}")
+        elif kind == "interview":
+            if not matches and not role:   # newsletters and tips mention interviews too
+                continue
+            open_rows = [r for r in matches if r["status"] == "Applied"]
+            for r in open_rows[:1]:
+                r["status"] = "Interview"
+                r["notes"] = (r["notes"] + "; " if r["notes"] else "") + \
+                    f"Interview email {e['date']}"
+            if not matches:
+                rows.append({"date": e["date"], "company": company,
+                             "role": role or "Interview", "ats_before": "",
+                             "ats_after": "", "status": "Interview", "link": "",
+                             "folder": "", "notes": "Interview email"})
+            if open_rows or not matches:
+                interviews.append((company, open_rows[0]["role"] if open_rows else role))
         elif kind == "rejected":
             open_rows = [r for r in matches if r["status"] in ("Applied", "Interview")]
             if role and not matches:
@@ -245,7 +277,7 @@ def fetch_application_emails(service, days, skip_ids=()):
 def sync_applications(con, service=None):
     """Read new application emails and update the tracker in the private repo.
 
-    Returns (added, rejected, added_today), or None when Gmail or the private repo
+    Returns (added, rejected, added_today, interviews), or None when Gmail or the private repo
     isn't connected. Emails are only marked as done after a successful backup,
     so nothing is lost if a push fails.
     """
@@ -264,31 +296,37 @@ def sync_applications(con, service=None):
     days = 3 if seen else 60          # first run: catch up on recent weeks
     emails = fetch_application_emails(service, days, seen)
     if not emails:
-        return [], [], 0
+        return [], [], 0, []
 
     restore()
     refresh(every_seconds=0)
-    rows, added, rejected = apply_emails(read_tracker(), emails)
-    if added or rejected:
+    interviews = []
+    rows, added, rejected = apply_emails(read_tracker(), emails, interviews)
+    if added or rejected or interviews:
         write_tracker(rows)
         ok, message = backup(f"Log {len(added)} application(s), "
-                             f"{len(rejected)} rejection(s) from email")
+                             f"{len(rejected)} rejection(s), "
+                             f"{len(interviews)} interview(s) from email")
         if not ok:
             print(message, flush=True)
-            return [], [], 0
+            return [], [], 0, []
     con.executemany("INSERT OR IGNORE INTO app_emails VALUES (?)",
                     [(e["id"],) for e in emails])
     con.commit()
     today = datetime.now(TIMEZONE).date().isoformat()
     added_today = sum(1 for r in rows if r["date"] == today
                       and f"{r['company']} – {r['role']}" in added)
-    return added, rejected, added_today
+    return added, rejected, added_today, interviews
 
 
-def sync_message(added, rejected):
+def sync_message(added, rejected, interviews=()):
     """Short Telegram note about what was logged."""
     e = html.escape
     lines = []
+    if interviews:
+        lines.append(f"🎉 <b>{len(interviews)} interview invite(s)!</b> Marked in your tracker:")
+        lines += [f"• {e(c)} – {e(r or 'role not found')}" for c, r in interviews[:15]]
+        lines.append("A prep pack for each is on its way.\n")
     if added:
         lines.append(f"📬 <b>Logged {len(added)} application(s)</b> from your email:")
         lines += [f"• {e(a)}" for a in added[:15]]

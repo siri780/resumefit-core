@@ -96,10 +96,10 @@ def test_sync_updates_tracker_once(monkeypatch, tmp_path):
     monkeypatch.setattr(ae, "fetch_application_emails",
                         lambda service, days, seen: [e for e in batch if e["id"] not in seen])
     con = connect(tmp_path / "t.db")
-    added, rejected, _ = ae.sync_applications(con, service=object())
+    added, rejected, _, _ = ae.sync_applications(con, service=object())
     assert added == ["NVIDIA – Software Engineer, Workflow Systems"] and pushed
     assert apps.read_tracker()[0]["status"] == "Applied"
-    assert ae.sync_applications(con, service=object()) == ([], [], 0)   # not repeated
+    assert ae.sync_applications(con, service=object()) == ([], [], 0, [])   # not repeated
     assert "Logged 1 application" in ae.sync_message(added, rejected)
 
 
