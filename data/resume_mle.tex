@@ -125,7 +125,7 @@
           {\textbf{ResumeFit -- LLM Resume-Tailoring Agent} $|$ \emph{Python, OpenAI API, Pydantic, GitHub Actions}}{\href{https://github.com/siri780/resumefit}{\underline{GitHub}}}
           \resumeItemListStart
             \resumeItem{Built an LLM-powered resume-tailoring agent using OpenAI Structured Outputs with Pydantic schemas, raising ATS keyword match from 65\% to 73\% on a sample posting with honest rewording only.}
-            \resumeItem{Designed a rule-based evaluation layer that checks every LLM output for fabricated metrics, unapproved skills, lost keywords and length before accepting it, then verifies the final PDF is a valid single page.}
+            \resumeItem{Designed a rule-based evaluation layer that strips prompt-injection text from postings (caught a hidden AI trap in a live posting) and checks every LLM output for fabricated metrics, unapproved skills and lost keywords.}
             \resumeItem{Deployed it with a scheduled GitHub Actions (CI/CD) pipeline that scans 78 job boards and alert emails every 5 minutes, sends Telegram alerts, and returns a tailored one-page PDF minutes after a tap.}
           \resumeItemListEnd
       \resumeProjectHeading
