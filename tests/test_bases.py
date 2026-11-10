@@ -37,5 +37,6 @@ def test_unclear_title_falls_back_to_best_match():
     jd = "Java, REST APIs, CI/CD, unit testing, OOP and Agile."
     name, result, how = pick_base("Member of Technical Staff", jd, load_skills())
     assert how == "match"
-    assert name in ("ML Engineer", "Software Engineer")
+    # every resume now lists these engineering basics, so any of them can tie at 100%
+    assert name in ("Data Scientist", "ML Engineer", "Software Engineer")
     assert result["percent"] == 100
