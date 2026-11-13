@@ -127,7 +127,6 @@
           \resumeItemListStart
             \resumeItem{Built an LLM-powered resume-tailoring agent using OpenAI Structured Outputs with Pydantic schemas, raising ATS keyword match from 65\% to 73\% on a sample posting with honest rewording only.}
             \resumeItem{Designed a rule-based evaluation layer that strips prompt-injection text from postings (caught a hidden AI trap in a live posting) and checks every LLM output for fabricated metrics, unapproved skills and lost keywords.}
-            \resumeItem{Deployed it on a scheduled GitHub Actions (CI/CD) pipeline that scans 78 job boards every 5 minutes and, on a Telegram tap, returns a tailored PDF, a fact-checked cover letter or an interview prep pack.}
           \resumeItemListEnd
       \resumeProjectHeading
           {\textbf{ReviewGuard -- Explainable Fake-Review Detection} $|$ \emph{PySpark, Spark MLlib, GraphFrames, SHAP}}{\href{https://github.com/siri780/reviewguard}{\underline{GitHub}}}
@@ -140,6 +139,11 @@
           \resumeItemListStart
             \resumeItem{Fine-tuned PubMedBERT with LoRA (0.54\% of weights) on 14K PubMed abstracts, reaching 0.657 macro-F1, above the published 0.644 baseline and 8.5 points above a 7B LLM at about 1/90th of the compute.}
             \resumeItem{Designed controlled experiments comparing confidence-based routing and ensembling against a zero-shot 7B model, reporting F1, compute per 1,000 requests and a 0.72 oracle ceiling.}
+          \resumeItemListEnd
+      \resumeProjectHeading
+          {\textbf{Movie Recommender on MovieLens 1M} $|$ \emph{Python, NumPy, SciPy, Matrix Factorization}}{\href{https://github.com/siri780/movielens-recommender}{\underline{GitHub}}}
+          \resumeItemListStart
+            \resumeItem{Built 4 recommenders (item-kNN, PureSVD, EASE vs. popularity) on 1M ratings; EASE hit 13.5\% HitRate@10 (9x baseline) with 47\% catalog coverage, compared by bootstrap CI.}
           \resumeItemListEnd
     \resumeSubHeadingListEnd
 
