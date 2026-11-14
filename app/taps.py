@@ -249,7 +249,7 @@ def handle_pause(con, q):
 
 
 def handle_cover(con, q):
-    """✉️ tap: write a cover letter and send it as a message to copy."""
+    """✉️ tap: write a cover letter and send it as a PDF."""
     from app.bases import DEFAULT, load_base
     from app.cover_letter import write_letter
     job = find_alert(con, q["data"][len(COVER_PREFIX):])
@@ -267,10 +267,18 @@ def handle_cover(con, q):
         return
     note = (f"\n🚫 {len(removed)} sentence(s) removed by the guard "
             "(they added facts not on your resume)." if removed else "")
-    send_message(f"✉️ <b>Cover letter · {html.escape(job['company'])}</b> · "
-                 f"{html.escape(job['title'])}\nUses your {html.escape(job.get('base') or DEFAULT)} "
-                 f"resume. Long-press the next message to copy it.{note}")
-    send_message(html.escape(letter)[:MAX_MESSAGE])
+    try:
+        from app.cover_pdf import build_letter_pdf, safe_name
+        pdf = build_letter_pdf(letter, job["company"])
+        send_pdf(pdf, f"Shirisha_Gajendra_Cover_Letter_{safe_name(job['company'])}.pdf",
+                 f"✉️ <b>Cover letter · {html.escape(job['company'])}</b> · "
+                 f"{html.escape(job['title'])}\nUses your "
+                 f"{html.escape(job.get('base') or DEFAULT)} resume.{note}")
+    except Exception as error:
+        print(f"Tap: cover letter PDF failed: {type(error).__name__}", flush=True)
+        send_message(f"✉️ <b>Cover letter · {html.escape(job['company'])}</b> "
+                     f"(PDF failed, so here's the text){note}")
+        send_message(html.escape(letter)[:MAX_MESSAGE])
     print("Tap: cover letter sent", flush=True)
 
 
