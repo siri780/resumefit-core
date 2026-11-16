@@ -18,7 +18,7 @@ TEMPLATE = r"""\documentclass[11pt,letterpaper]{article}
 \pagestyle{empty}
 \begin{document}
 {\LARGE\bfseries Shirisha Gajendra}\\[3pt]
-{\small {{PHONE}} $|$ \href{mailto:{{EMAIL}}}{{{EMAIL}}} $|$
+{\footnotesize {{PHONE}} $|$ \href{mailto:{{EMAIL}}}{{{EMAIL}}} $|$
 \href{https://www.linkedin.com/in/shirisha-gajendra}{in/shirisha-gajendra} $|$
 \href{https://github.com/siri780}{github.com/siri780} $|$
 \href{https://siri780.github.io}{Portfolio} $|$ New York, NY}
