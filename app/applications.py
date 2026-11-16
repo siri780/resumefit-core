@@ -43,6 +43,45 @@ def already_applied(company, role):
                for r in read_tracker())
 
 
+def _norm(text):
+    """'Two Sigma' and 'Twosigma' -> 'twosigma'; drops job numbers like (ID: 123)."""
+    text = re.sub(r"\((?:id|job number|req)[^)]*\)|\b[A-Z]?-?\d{5,}\b", " ", text or "", flags=re.I)
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+FILLER = {"2025", "2026", "2027", "2028", "start", "usa", "us", "remote", "hybrid",
+          "onsite", "position", "role", "the", "a", "an", "of", "and", "for", "in", "at",
+          "to", "with"}
+
+
+def _words(title):
+    """The words that make a job title distinct ('Senior', 'II', 'Grad' count)."""
+    title = re.sub(r"\((?:id|job number|req)[^)]*\)|\b[A-Z]{0,2}-?\d{5,}\b", " ",
+                   title or "", flags=re.I)
+    return frozenset(re.findall(r"[a-z0-9]+", title.lower())) - FILLER
+
+
+def applied_keys(rows=None):
+    """(company, title words) for every job already in the tracker."""
+    rows = read_tracker() if rows is None else rows
+    return {(_norm(r["company"]), _words(r["role"])) for r in rows
+            if _norm(r["company"]) and len(_words(r["role"])) >= 2}
+
+
+def applied_before(job, keys):
+    """True if the tracker already has this company and the same job title.
+
+    Small differences are fine ("Quantitative Researcher: Machine Learning" vs
+    "Quantitative Researcher - Machine Learning", "(ID: 123)", "2027 Start"),
+    but a different level is a different job ("Data Scientist II" vs "III").
+    """
+    company, words = _norm(job["company"]), _words(job["title"])
+    if not company or not words:
+        return False
+    return any((c == company or (len(c) >= 4 and (c in company or company in c)))
+               and role == words for c, role in keys)
+
+
 def safe_part(text):
     """Turn text into a safe folder-name part."""
     return re.sub(r"[^A-Za-z0-9]+", "_", text).strip("_") or "Unknown"
