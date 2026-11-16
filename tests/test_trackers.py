@@ -59,23 +59,55 @@ def test_age_and_dedupe():
     assert dedupe([a, b]) == [a]
 
 
-def test_describe_uses_greenhouse_and_lever_apis(monkeypatch):
+LONG = "Build models in Python and SQL for product analytics. " * 6
+
+
+def test_describe_uses_each_job_sites_api(monkeypatch):
     calls = []
 
     def fake_get_json(url):
         calls.append(url)
         if "greenhouse" in url:
-            return {"content": "&lt;p&gt;Build models in Python&lt;/p&gt;"}
-        return {"descriptionPlain": "Ship ML systems", "lists": [{"content": "<li>SQL</li>"}]}
+            return {"content": "&lt;p&gt;" + LONG + "&lt;/p&gt;"}
+        if "lever" in url:
+            return {"descriptionPlain": LONG, "lists": [{"content": "<li>SQL</li>"}]}
+        if "myworkdayjobs" in url:
+            return {"jobPostingInfo": {"jobDescription": "<p>" + LONG + "</p>"}}
+        if "ashbyhq" in url:
+            return {"jobs": [{"id": "0d6c5f3e-1111-2222-3333-444455556666", "descriptionPlain": LONG}]}
+        if "workable" in url:
+            return {"description": LONG, "requirements": "Statistics"}
+        if "smartrecruiters" in url:
+            return {"jobAd": {"sections": {"jobDescription": {"text": LONG}}}}
+        return {}
 
     monkeypatch.setattr("app.feeds.get_json", fake_get_json)
-    gh = describe({"url": "https://job-boards.greenhouse.io/cmt/jobs/8385978", "description": ""})
-    lv = describe({"url": "https://jobs.lever.co/esrtreit/9ec61f1b-1eeb-44c8-8be2-f25167b83267/apply",
-                   "description": ""})
-    assert calls == ["https://boards-api.greenhouse.io/v1/boards/cmt/jobs/8385978",
-                     "https://api.lever.co/v0/postings/esrtreit/9ec61f1b-1eeb-44c8-8be2-f25167b83267"]
-    assert "Build models in Python" in gh["description"]
-    assert "Ship ML systems" in lv["description"] and "SQL" in lv["description"]
+    urls = [
+        "https://job-boards.greenhouse.io/cmt/jobs/8385978",
+        "https://jobs.lever.co/esrtreit/9ec61f1b-1eeb-44c8-8be2-f25167b83267/apply",
+        "https://adobe.wd5.myworkdayjobs.com/en-US/external_experienced/job/San-Jose/Data-Scientist_R1?src=x",
+        "https://jobs.ashbyhq.com/triumph/0d6c5f3e-1111-2222-3333-444455556666",
+        "https://apply.workable.com/acme/j/AB12CD34EF/",
+        "https://jobs.smartrecruiters.com/Visa/744000098765432-data-scientist",
+    ]
+    for url in urls:
+        job = describe({"url": url, "description": ""})
+        assert "Build models in Python" in job["description"], url
+    assert calls == [
+        "https://boards-api.greenhouse.io/v1/boards/cmt/jobs/8385978",
+        "https://api.lever.co/v0/postings/esrtreit/9ec61f1b-1eeb-44c8-8be2-f25167b83267",
+        "https://adobe.wd5.myworkdayjobs.com/wday/cxs/adobe/external_experienced/job/San-Jose/Data-Scientist_R1",
+        "https://api.ashbyhq.com/posting-api/job-board/triumph",
+        "https://apply.workable.com/api/v2/accounts/acme/jobs/AB12CD34EF",
+        "https://api.smartrecruiters.com/v1/companies/Visa/postings/744000098765432",
+    ]
+
+
+def test_unknown_site_falls_back_to_reading_the_page(monkeypatch):
+    monkeypatch.setattr("app.mail_alerts.add_description",
+                        lambda job: {**job, "description": "from page"})
+    job = describe({"url": "https://unique.careers.hibob.com/jobs/e59dfdc2", "description": ""})
+    assert job["description"] == "from page"
 
 
 def test_first_tracker_run_is_quiet_then_alerts(monkeypatch, tmp_path):
@@ -102,7 +134,7 @@ def test_alert_says_which_tracker():
                          "tier": "Strong", "ats": None, "missing": [], "score": 50,
                          "sponsorship": "❔", "url": "u", "source": "tracker",
                          "via": "SpeedyApply AI/ML"})
-    assert "📋 From the SpeedyApply AI/ML new-grad tracker" in text
+    assert "📋 From the SpeedyApply AI/ML tracker" in text
 
 
 def test_company_feed_skips_job_a_tracker_already_sent(monkeypatch, tmp_path):
