@@ -20,6 +20,7 @@ from app.applications import TIMEZONE
 BUTTON_PREFIX = "t:"
 PAUSE_PREFIX = "p:"
 COVER_PREFIX = "c:"
+EMAIL_PREFIX = "h:"
 KEEP_DAYS = 3
 MAX_MESSAGE = 3900
 RETRIES = 3
@@ -107,6 +108,8 @@ def remember_alert(con, match):
                       "callback_data": BUTTON_PREFIX + key},
                      {"text": "✉️ Cover letter",
                       "callback_data": COVER_PREFIX + key}])
+        rows.append([{"text": "📨 Hiring-manager email",
+                      "callback_data": EMAIL_PREFIX + key}])
     rows.append([{"text": "🔕 Pause company", "callback_data": PAUSE_PREFIX + key}])
     return rows
 
@@ -127,7 +130,7 @@ def get_taps():
     for u in updates:
         q = u.get("callback_query")
         if not q or not q.get("data", "").startswith(
-                (BUTTON_PREFIX, PAUSE_PREFIX, COVER_PREFIX)):
+                (BUTTON_PREFIX, PAUSE_PREFIX, COVER_PREFIX, EMAIL_PREFIX)):
             continue
         chat = str(q.get("message", {}).get("chat", {}).get("id", "")).strip()
         if chat == my_chat():
@@ -285,6 +288,36 @@ def handle_cover(con, q):
     print("Tap: cover letter sent", flush=True)
 
 
+def handle_email(con, q):
+    """📨 tap: draft a cold email to the hiring manager / team."""
+    from app.bases import DEFAULT, load_base
+    from app.hm_email import people_search, write_email
+    job = find_alert(con, q["data"][len(EMAIL_PREFIX):])
+    telegram("answerCallbackQuery", callback_query_id=q["id"],
+             text="📨 Drafting it now. It arrives in a minute or two."
+             if job else "That alert is too old.")
+    if not job:
+        return
+    base = job.get("base") or DEFAULT
+    try:
+        subject, text, removed = write_email(job, load_base(base), base)
+    except Exception as error:
+        print(f"Tap: email failed: {type(error).__name__}", flush=True)
+        send_message(f"⚠️ Couldn't draft the email for "
+                     f"{html.escape(job['company'])}: {html.escape(str(error))[:300]}")
+        return
+    e = html.escape
+    note = (f"\n🚫 {len(removed)} sentence(s) removed by the guard." if removed else "")
+    send_message(
+        f"📨 <b>Hiring-manager email · {e(job['company'])}</b> · {e(job['title'])}\n"
+        f"👤 Who to send it to: the team's hiring manager or a data scientist on it "
+        f"(founder only at a small startup). "
+        f"<a href=\"{e(people_search(job['company'], base))}\">Find them on LinkedIn</a>\n"
+        f"🔁 No reply? Follow up once after 5–7 business days, then let it go.{note}")
+    send_message(f"<b>Subject:</b> {e(subject)}\n\n{e(text)}"[:MAX_MESSAGE])
+    print("Tap: email drafted", flush=True)
+
+
 def process_taps(con):
     """Handle every pending tap. Returns how many resumes were tailored."""
     updates, all_taps = get_taps()
@@ -294,6 +327,8 @@ def process_taps(con):
             handle_pause(con, q)
         elif q["data"].startswith(COVER_PREFIX):
             handle_cover(con, q)
+        elif q["data"].startswith(EMAIL_PREFIX):
+            handle_email(con, q)
         else:
             taps.append(q)
     for q in taps:
