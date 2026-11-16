@@ -35,6 +35,8 @@ REJECTED = [
     "no longer under consideration", "no longer being considered",
     "pursue other candidates", "move forward with another candidate",
     "chosen to move forward with other", "selected another candidate",
+    "progress with other candidates", "move ahead with other candidates",
+    "proceed with other candidates", "go with other candidates",
 ]
 INTERVIEW = [
     "schedule an interview", "schedule your interview",
@@ -61,7 +63,8 @@ TENANT_NAMES = {"fmr": "Fidelity Investments", "cvshealth": "CVS Health",
                 "nvidia": "NVIDIA", "jpmc": "JPMorgan Chase",
                 "bankofamerica": "Bank of America", "wellsfargo": "Wells Fargo",
                 "uhg": "UnitedHealth Group", "air": "AIR", "doordash": "DoorDash",
-                "iqvia": "IQVIA"}
+                "iqvia": "IQVIA", "twosigma": "Two Sigma", "openai": "OpenAI",
+                "capitalone": "Capital One", "msd": "MSD", "bamboohr": "BambooHR"}
 GENERIC_SENDERS = {"no-reply", "noreply", "donotreply", "do-not-reply",
                    "notifications", "careers", "jobs", "recruiting", "talent"}
 ATS_DOMAINS = ("greenhouse-mail.io", "greenhouse.io", "lever.co", "ashbyhq.com",
@@ -70,6 +73,10 @@ ATS_DOMAINS = ("greenhouse-mail.io", "greenhouse.io", "lever.co", "ashbyhq.com",
 
 REQ_ID = re.compile(r"^(?:[A-Z]{1,4}[-_]?\d{4,}|\d{5,})(?:[-_]\d+)?(?:\s*-\s*|\s+)")
 ROLE_PATTERNS = [
+    re.compile(r"application for the following (?:position|role):\s*(?P<role>.+?)"
+               r"(?=\s+What\b|\.\s|\s{2}|$)", re.I),
+    re.compile(r"Requisition ID:\s*[A-Z]?\d+\s*(?:[A-Z]\s*-\s*)?(?P<role>.+?)"
+               r"(?=\s+Your\b|\.\s|$)", re.I),
     re.compile(r"(?:for the role of|application as)\s+(?P<role>.+?)\s*(?=,|\.\s|$)", re.I),
     re.compile(r"(?:applying|applied|application|apply)\s+(?:for|to):?\s+"
                r"(?:our\s+|the\s+)?(?:position\s+of\s+)?:?\s*(?P<role>.+?)"
@@ -83,7 +90,7 @@ SUBJECT_PATTERNS = [
     re.compile(r"^update on (?P<company>[\w&.' -]+?)(?:'s|’s) (?P<role>.+)$", re.I),
     re.compile(r"^(?P<role>.+?)[- ]\d{5,} opening at (?P<company>.+)$", re.I),
 ]
-BAD_ROLE = re.compile(r"\b(?:your|you|we|our|us|multiple|positions)\b|[!?]", re.I)
+BAD_ROLE = re.compile(r"\b(?:your|you|we|our|us|multiple|positions|following|hi)\b|[!?]", re.I)
 VAGUE_ROLE = re.compile(r"^(?:a|an|this|that|the|our|your|any|one|other)\b|^(?:us|jobs?|roles?)$",
                         re.I)
 UPDATE_SUBJECT = re.compile(
@@ -98,6 +105,8 @@ def clean_role(role):
     role = REQ_ID.sub("", role)
     role = re.sub(r"\s*\((?:Open|Closed)\)\s*$", "", role, flags=re.I)
     role = re.sub(r"[,\s-]+\d{5,}$", "", role)                # trailing req id
+    role = re.sub(r"\s+\((?:ID|Job number|Req)[^)]*\)", "", role, flags=re.I)
+    role = re.sub(r"\s+(?:Role|Position)$", "", role)
     return re.sub(r"\s+", " ", role).strip(" :-,.")[:120]
 
 
@@ -161,12 +170,16 @@ def extract(subject, body, sender):
             break
     if not role:
         for pattern in ROLE_PATTERNS:
-            for m in pattern.finditer(body):     # first specific job title
+            pos = 0
+            while not role:                      # first specific job title
+                m = pattern.search(body, pos)
+                if not m:
+                    break
                 candidate = clean_role(m.group("role"))
                 if (len(candidate) >= 4 and not VAGUE_ROLE.search(candidate)
                         and not BAD_ROLE.search(candidate)):
                     role = candidate
-                    break
+                pos = m.start() + 1              # a bad match may hide a good one
             if role:
                 break
     if not role:
@@ -174,6 +187,8 @@ def extract(subject, body, sender):
         if m:
             role, company = clean_role(m.group("role")), m.group("company").strip()
     company = company_from_sender(sender) or company
+    if company and role.lower().strip(" !.") == company.lower():
+        role = ""                              # "Thank you for applying to OpenAI"
     if company and role:                       # "DoorDash's Senior Data Scientist"
         role = re.sub(r"^" + re.escape(company) + r"(?:'s|’s)\s+", "", role, flags=re.I)
     for text in (subject, body):
