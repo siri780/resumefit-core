@@ -69,3 +69,38 @@ def test_more_foreign_locations_are_skipped():
     assert not outside_us("Lima, Ohio")              # a U.S. state wins
     assert not outside_us("New York, NY")
     assert not outside_us("Remote - United States")
+
+
+def test_more_no_sponsorship_wordings():
+    from app.rank import no_sponsorship
+    for t in ["we do not sponsor visas for this role",
+              "we are unable to support visa applications",
+              "no h-1b transfers", "candidates not eligible to receive sponsorship",
+              "we won't sponsor", "we cannot currently provide visa sponsorship",
+              "this position is not eligible for immigration sponsorship.",
+              "sponsorship is not offered for this role"]:
+        assert no_sponsorship(t), t
+    for t in ["we offer visa sponsorship", "h-1b sponsorship available",
+              "you will sponsor experiments across teams"]:
+        assert not no_sponsorship(t), t
+
+
+def test_us_person_is_word_bounded():
+    from app.rank import knockouts
+    base = {"title": "Data Scientist", "location": "New York, NY"}
+    blocked = knockouts({**base, "description": "Must be a U.S. person under ITAR."})
+    assert "Requires U.S. citizenship or security clearance" in blocked
+    ok = knockouts({**base, "description": "A focus person for our analytics team."})
+    assert "Requires U.S. citizenship or security clearance" not in ok
+
+
+def test_frontend_and_mobile_roles_are_knocked_out():
+    from app.rank import frontend_role
+    for t in ["Software Engineer, Profile & Community, Web", "Frontend Engineer",
+              "Senior Front-End Developer", "iOS Engineer", "Android Developer",
+              "Software Engineer - Mobile", "UI Engineer"]:
+        assert frontend_role(t), t
+    for t in ["Data Scientist, Web Analytics", "Machine Learning Engineer",
+              "Software Engineer, Backend", "Data Engineer", "Full Stack Engineer",
+              "Web Analyst"]:
+        assert not frontend_role(t), t
