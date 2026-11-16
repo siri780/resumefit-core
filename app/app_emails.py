@@ -30,6 +30,11 @@ REJECTED = [
     "regret to inform", "unable to offer you", "position has been filled",
     "decided not to proceed", "not to proceed with your",
     "not pursuing you", "other candidates who more closely",
+    "decided not to move forward", "not to move forward with your",
+    "will not be proceeding", "won't be proceeding", "not be proceeding with your",
+    "no longer under consideration", "no longer being considered",
+    "pursue other candidates", "move forward with another candidate",
+    "chosen to move forward with other", "selected another candidate",
 ]
 INTERVIEW = [
     "schedule an interview", "schedule your interview",
@@ -48,21 +53,24 @@ APPLIED = [
     "application has been received", "application was received",
     "officially applied", "confirm that your application",
     "your application for", "we have received your application",
-    "your application was sent to",
+    "your application was sent to", "have received your",
 ]
 
 # Workday sends from <tenant>@myworkday.com; a few tenants need nicer names.
 TENANT_NAMES = {"fmr": "Fidelity Investments", "cvshealth": "CVS Health",
                 "nvidia": "NVIDIA", "jpmc": "JPMorgan Chase",
-                "bankofamerica": "Bank of America", "wellsfargo": "Wells Fargo"}
+                "bankofamerica": "Bank of America", "wellsfargo": "Wells Fargo",
+                "uhg": "UnitedHealth Group", "air": "AIR", "doordash": "DoorDash",
+                "iqvia": "IQVIA"}
 GENERIC_SENDERS = {"no-reply", "noreply", "donotreply", "do-not-reply",
                    "notifications", "careers", "jobs", "recruiting", "talent"}
 ATS_DOMAINS = ("greenhouse-mail.io", "greenhouse.io", "lever.co", "ashbyhq.com",
                "myworkday.com", "icims.com", "smartrecruiters.com",
                "successfactors.com", "taleo.net", "jobvite.com")
 
-REQ_ID = re.compile(r"^(?:[A-Z]{1,4}[-_]?\d{4,}|\d{5,})(?:[-_]\d+)?\s+")
+REQ_ID = re.compile(r"^(?:[A-Z]{1,4}[-_]?\d{4,}|\d{5,})(?:[-_]\d+)?(?:\s*-\s*|\s+)")
 ROLE_PATTERNS = [
+    re.compile(r"(?:for the role of|application as)\s+(?P<role>.+?)\s*(?=,|\.\s|$)", re.I),
     re.compile(r"(?:applying|applied|application|apply)\s+(?:for|to):?\s+"
                r"(?:our\s+|the\s+)?(?:position\s+of\s+)?:?\s*(?P<role>.+?)"
                r"(?=\s+(?:role|position|job|opening|posting)\b|,\s*we\b|\s+and\s+for\b"
@@ -72,7 +80,10 @@ ROLE_PATTERNS = [
 SUBJECT_PATTERNS = [
     re.compile(r"your application for (?P<role>.+?) at (?P<company>.+)$", re.I),
     re.compile(r"application for the (?P<role>.+?) position", re.I),
+    re.compile(r"^update on (?P<company>[\w&.' -]+?)(?:'s|’s) (?P<role>.+)$", re.I),
+    re.compile(r"^(?P<role>.+?)[- ]\d{5,} opening at (?P<company>.+)$", re.I),
 ]
+BAD_ROLE = re.compile(r"\b(?:your|you|we|our|us|multiple|positions)\b|[!?]", re.I)
 VAGUE_ROLE = re.compile(r"^(?:a|an|this|that|the|our|your|any|one|other)\b|^(?:us|jobs?|roles?)$",
                         re.I)
 UPDATE_SUBJECT = re.compile(
@@ -86,18 +97,26 @@ def clean_role(role):
     role = html.unescape(role).strip(" :-,.")
     role = REQ_ID.sub("", role)
     role = re.sub(r"\s*\((?:Open|Closed)\)\s*$", "", role, flags=re.I)
+    role = re.sub(r"[,\s-]+\d{5,}$", "", role)                # trailing req id
     return re.sub(r"\s+", " ", role).strip(" :-,.")[:120]
 
 
+HEDGE = re.compile(r"\b(?:if|once|should|whether|in case|unless|likely|might|"
+                   r"we may|may be|when we|after we)\b")
+
+
+def sentences(text):
+    return re.split(r"(?<=[.!?])\s+|\n+", text)
+
+
 def is_decision(text, phrase):
-    """True if the rejection phrase is a statement, not "if we ... other candidates"."""
-    start = text.find(phrase)
-    while start != -1:
-        before = text[max(0, start - 80):start]
-        if not re.search(r"\b(?:if|should|in case|whether|may|might)\b", before):
-            return True
-        start = text.find(phrase, start + 1)
-    return False
+    """True if the phrase is stated as a fact, not as a possibility.
+
+    Confirmation emails often say "if you're a fit, we'll reach out to
+    schedule an interview" or "if you don't hear from us, we've likely
+    moved forward with other candidates". Those sentences are ignored.
+    """
+    return any(phrase in s and not HEDGE.search(s) for s in sentences(text))
 
 
 def classify(subject, body):
@@ -105,7 +124,7 @@ def classify(subject, body):
     text = f"{subject}\n{body}".lower().replace("’", "'")
     if any(is_decision(text, p.replace("’", "'")) for p in REJECTED):
         return "rejected"
-    if any(p in text for p in INTERVIEW):
+    if any(is_decision(text, p) for p in INTERVIEW):
         return "interview"
     if any(p in text for p in APPLIED):
         return "applied"
@@ -144,7 +163,8 @@ def extract(subject, body, sender):
         for pattern in ROLE_PATTERNS:
             for m in pattern.finditer(body):     # first specific job title
                 candidate = clean_role(m.group("role"))
-                if len(candidate) >= 4 and not VAGUE_ROLE.search(candidate):
+                if (len(candidate) >= 4 and not VAGUE_ROLE.search(candidate)
+                        and not BAD_ROLE.search(candidate)):
                     role = candidate
                     break
             if role:
@@ -154,6 +174,8 @@ def extract(subject, body, sender):
         if m:
             role, company = clean_role(m.group("role")), m.group("company").strip()
     company = company_from_sender(sender) or company
+    if company and role:                       # "DoorDash's Senior Data Scientist"
+        role = re.sub(r"^" + re.escape(company) + r"(?:'s|’s)\s+", "", role, flags=re.I)
     for text in (subject, body):
         if company:
             break
