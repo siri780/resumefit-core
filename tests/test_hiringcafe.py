@@ -89,3 +89,15 @@ def test_status_message_only_when_it_changes(monkeypatch, tmp_path):
     watch.tell_source_status(con, "HiringCafe", ["HiringCafe: HTTPError 403"])
     watch.tell_source_status(con, "HiringCafe", ["HiringCafe: HTTPError 403"])
     assert len(sent) == 2 and "connected" in sent[0] and "403" in sent[1]
+
+
+def test_blocked_source_is_remembered(monkeypatch, tmp_path):
+    import sqlite3
+    from app import watch
+    monkeypatch.setattr(watch, "send_message", lambda text, *a: None)
+    con = sqlite3.connect(tmp_path / "s.db")
+    assert not watch.was_blocked(con, "HiringCafe")
+    watch.tell_source_status(con, "HiringCafe", ["HiringCafe: HTTPError 403"])
+    assert watch.was_blocked(con, "HiringCafe")
+    watch.tell_source_status(con, "HiringCafe", [])
+    assert not watch.was_blocked(con, "HiringCafe")
