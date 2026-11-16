@@ -1,4 +1,3 @@
-
 import os
 
 from openai import OpenAI
@@ -18,7 +17,8 @@ RULES = """You tailor resume bullets to a job description. Strict rules:
 4. Use job-description keywords only where the original bullet
    honestly supports them.
 5. Keep LaTeX escapes exactly: write \\% and \\& (never bare % or &).
-6. Start with a strong action verb. Keep length similar to the original.
+6. Start with a strong action verb. Keep length close to the original
+   (the resume must stay on one page).
 7. If a bullet cannot be honestly improved, do not include it.
 8. Keep the original verb tense (present tense for current roles)."""
 
