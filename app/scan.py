@@ -49,8 +49,8 @@ def scan(include_workday=True):
     texts = {}
     matches = []
     for job in new:
-        if not is_relevant(job):
-            continue
+        if not is_relevant(job) or already_alerted(con, job):
+            continue                   # e.g. a tracker or email already sent it
         job_description(job)
         base, ats, how = pick_base(job["title"], job["description"], skills,
                                    texts)
@@ -121,6 +121,42 @@ def scan_email(con):
                             "base_how": "title",
                             "sponsorship": "❔ open the job to check"})
     return matches, []
+
+
+MAX_TRACKER_LOOKUPS = 40      # job pages fetched per run (keeps runs short)
+
+
+def scan_trackers(con):
+    """New-grad jobs from the GitHub trackers. Returns (matches, errors)."""
+    from app.trackers import describe, fetch_tracker_jobs
+    jobs, errors = fetch_tracker_jobs()
+    if not jobs:
+        return [], errors
+    first = con.execute("SELECT 1 FROM seen WHERE id LIKE '%:trk-%' LIMIT 1").fetchone() is None
+    new = remember(con, jobs, seed_new_companies=False)
+    if first:                     # first time: save quietly, alert only on new ones
+        return [], errors
+    new = [j for j in new if is_relevant(j) and not already_alerted(con, j)]
+    skills = load_skills()
+    texts = {}
+    matches = []
+    for job in new[:MAX_TRACKER_LOOKUPS]:
+        describe(job)
+        if job["description"]:
+            base, ats, how = pick_base(job["title"], job["description"],
+                                       skills, texts)
+            result = assess(job, ats["percent"])
+            if result["show"]:
+                matches.append({**job, **result, "ats": ats["percent"],
+                                "missing": ats["missing"], "base": base,
+                                "base_how": how})
+        elif not knockouts(job) and tier(job) != "Long shot":
+            matches.append({**job, "tier": tier(job), "ats": None,
+                            "missing": [], "score": 50,
+                            "base": guess_base(job["title"]) or DEFAULT,
+                            "base_how": "title",
+                            "sponsorship": "❔ open the job to check"})
+    return sorted(matches, key=lambda m: m["score"], reverse=True), errors
 
 
 if __name__ == "__main__":
