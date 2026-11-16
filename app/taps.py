@@ -211,14 +211,17 @@ def tailor_job(job):
     kw_after = kw_before
     after = before
     if applied:
-        new_tex = apply_edits(tex, {s["id"]: s["new"] for s in applied})
+        from app.one_page import fit_one_page
+        new_tex, tailored_pdf, applied, undone = fit_one_page(
+            tex, applied, build_pdf, f"tailored_{company}")
         after = score(latex_to_text(new_tex), job["description"], skills)
         kw_after = keyword_match(latex_to_text(new_tex), job["description"],
                                  job["company"])
-        tailored_pdf = build_pdf(f"tailored_{company}", tex=new_tex)
         problems = check_pdf(tailored_pdf, latex_to_text(new_tex))
         note = ("✅ 1 page · ATS-readable" if not problems
                 else "⚠️ " + "; ".join(problems))
+        if undone:
+            note += (f" · ↩️ {len(undone)} edit(s) undone to keep it to 1 page")
         send_pdf(tailored_pdf, f"Shirisha_Gajendra_Resume_{company}.pdf",
                  f"✨ Tailored for {html.escape(job['company'])} · "
                  f"ATS {after['percent']}% · {html.escape(note)}")
@@ -315,8 +318,10 @@ def process_taps(con):
 
 
 def has_taps():
-    """True if a "Tailor" tap is waiting (pause taps don't need LaTeX)."""
-    return any(q["data"].startswith(BUTTON_PREFIX) for q in get_taps()[1])
+    """True if a Tailor or Cover letter tap is waiting (both build PDFs with
+    LaTeX; pause taps don't need it)."""
+    return any(q["data"].startswith((BUTTON_PREFIX, COVER_PREFIX))
+               for q in get_taps()[1])
 
 
 if __name__ == "__main__":
