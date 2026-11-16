@@ -12,7 +12,8 @@ def test_cover_button_on_alerts_with_a_description(tmp_path):
     rows = taps.remember_alert(con, {"id": "x:1", "company": "Acme", "title": "DS",
                                      "description": "SQL"})
     labels = [b["text"] for row in rows for b in row]
-    assert labels == ["✨ Tailor my resume", "✉️ Cover letter", "🔕 Pause company"]
+    assert labels == ["✨ Tailor my resume", "✉️ Cover letter",
+                      "📨 Hiring-manager email", "🔕 Pause company"]
     data = rows[0][1]["callback_data"]
     assert data.startswith(taps.COVER_PREFIX) and len(data.encode()) <= 64
 
