@@ -15,6 +15,24 @@ NO_SPONSOR = ["not sponsor", "no sponsorship", "unable to sponsor",
               "no visa sponsorship", "not eligible for sponsorship",
               "sponsorship will not be", "unable to provide sponsorship"]
 YES_SPONSOR = ["visa sponsorship", "will sponsor", "h-1b", "h1b"]
+# More ways postings say "no sponsorship" or "citizens only". Word-bounded so
+# that "focus person" never reads as "us person".
+NO_SPONSOR_RE = re.compile(
+    r"\b(?:do not|don't|won't|not able to|unable to|cannot|can't|will not)\s+"
+    r"(?:currently\s+)?(?:offer\s+|provide\s+|support\s+)?(?:visa\s+)?sponsor"
+    r"|\bno\s+(?:visa\s+)?(?:h-?1b|sponsorship)\b"
+    r"|\bnot\s+(?:able|eligible)\s+to\s+(?:receive\s+)?(?:visa\s+)?sponsor"
+    r"|\bnot\s+eligible\s+for\s+(?:\w+\s+){0,2}sponsorship"
+    r"|\bsponsorship\s+(?:is\s+)?not\s+(?:offered|provided|possible)"
+    r"|\bunable to support (?:visa|immigration)")
+BLOCKER_RE = re.compile(
+    r"\bu\.?s\.? persons?\b|\bitar\b|\bts/sci\b|\bactive (?:secret |ts )?clearance\b"
+    r"|\bpublic trust clearance\b|\bmust be a u\.?s\.? citizen\b")
+# Engineering roles your resumes don't fit: frontend, web UI and mobile apps.
+FRONTEND_TITLE = re.compile(
+    r"\b(?:front[\s-]?end|frontend|web|ui|ios|android|mobile|react|"
+    r"javascript|typescript)\b")
+ENGINEER_TITLE = re.compile(r"\b(?:engineer|developer|programmer)\b")
 FLEXIBLE = ["or equivalent", "master's", "masters", "ms in", "m.s."]
 TARGET_WORDS = ["new grad", "new college grad", "university grad", "early career",
                 "entry level", "entry-level", "2027", "junior", "associate"]
@@ -144,10 +162,12 @@ def knockouts(job):
     reasons = []
     if outside_us(job.get("location", "")):
         reasons.append(f"Outside the U.S. ({job['location']})")
-    if has_any(text, BLOCKERS):
+    if has_any(text, BLOCKERS) or BLOCKER_RE.search(text):
         reasons.append("Requires U.S. citizenship or security clearance")
-    if has_any(text, NO_SPONSOR):
+    if no_sponsorship(text):
         reasons.append("Sponsorship not available")
+    if frontend_role(job["title"]):
+        reasons.append("Frontend/mobile engineering role")
     if PHD.search(text) and not has_any(text, NON_PHD_DEGREE):
         reasons.append("Requires a PhD")
     creds = required_credentials(text)
@@ -159,6 +179,19 @@ def knockouts(job):
     if years is not None and years >= 8:
         reasons.append(f"Requires {years}+ years of experience")
     return reasons
+
+
+def no_sponsorship(text):
+    """True if a (lower-case) posting says it won't sponsor a visa."""
+    return has_any(text, NO_SPONSOR) or bool(NO_SPONSOR_RE.search(text))
+
+
+def frontend_role(title):
+    """Frontend, web UI or mobile app engineering, e.g. 'Software Engineer,
+    Profile & Community, Web' or 'iOS Developer'. Data roles that mention
+    the web (like 'Data Scientist, Web Analytics') are not engineer titles."""
+    low = title.lower()
+    return bool(ENGINEER_TITLE.search(low) and FRONTEND_TITLE.search(low))
 
 
 def years_required(text):
@@ -189,7 +222,7 @@ def assess(job, ats_percent):
     text = job["description"].lower()
     job_tier = tier(job)
     blocked = knockouts(job)
-    if has_any(text, NO_SPONSOR):
+    if no_sponsorship(text):
         sponsor, sponsor_points = "❌ no sponsorship", 0
     elif has_any(text, YES_SPONSOR):
         sponsor, sponsor_points = "✅ sponsorship mentioned", 100
