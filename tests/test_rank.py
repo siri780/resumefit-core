@@ -104,3 +104,20 @@ def test_frontend_and_mobile_roles_are_knocked_out():
               "Software Engineer, Backend", "Data Engineer", "Full Stack Engineer",
               "Web Analyst"]:
         assert not frontend_role(t), t
+
+
+def test_remote_job_with_foreign_country_in_description_is_knocked_out():
+    from app.rank import hidden_foreign_location, knockouts
+    base = {"title": "Data Scientist III", "company": "ClassPass"}
+    uk = {**base, "location": "Remote",
+          "description": "ClassPass | Pricing & Inventory | Full-time | United Kingdom | Remote. At Playlist..."}
+    us = {**base, "location": "Remote",
+          "description": "Full-time | United States | Remote. We partner with teams in London and Toronto."}
+    later = {**base, "location": "Remote",
+             "description": "Build models in Python. " * 30 + "Our offices are in London."}
+    named = {**base, "location": "New York, NY", "description": "United Kingdom office collaboration"}
+    assert hidden_foreign_location(uk) == "United Kingdom"
+    assert any("Outside the U.S." in r for r in knockouts(uk))
+    assert hidden_foreign_location(us) == ""          # U.S. mentioned at the top
+    assert hidden_foreign_location(later) == ""       # far down the page doesn't count
+    assert hidden_foreign_location(named) == ""       # real U.S. location given
