@@ -52,5 +52,28 @@ def test_cover_tap_sends_letter(monkeypatch, tmp_path):
                         lambda job, tex: ("Dear Acme Hiring Team,\n\nHello.", []))
     monkeypatch.setattr(taps, "get_taps", lambda: (
         [{"update_id": 1}], [{"id": "q1", "data": rows[0][1]["callback_data"]}]))
+    pdfs = []
+    monkeypatch.setattr("app.cover_pdf.build_letter_pdf", lambda letter, company: tmp_path / "l.pdf")
+    monkeypatch.setattr(taps, "send_pdf", lambda path, name, caption: pdfs.append((name, caption)))
     assert taps.process_taps(con) == 0          # a letter isn't a tailored resume
-    assert "Cover letter" in sent[0] and "Dear Acme Hiring Team" in sent[1]
+    assert pdfs and pdfs[0][0] == "Shirisha_Gajendra_Cover_Letter_Acme.pdf"
+    assert "Cover letter" in pdfs[0][1] and sent == []
+
+
+def test_cover_tap_falls_back_to_text_if_pdf_fails(monkeypatch, tmp_path):
+    con = connect(tmp_path / "t.db")
+    rows = taps.remember_alert(con, {"id": "x:1", "company": "Acme", "title": "DS",
+                                     "base": "Data Scientist", "description": "SQL"})
+    sent = []
+    monkeypatch.setattr(taps, "telegram", lambda method, **k: {"ok": True})
+    monkeypatch.setattr(taps, "send_message", lambda text, *a: sent.append(text) or {"ok": True})
+    monkeypatch.setattr("app.cover_letter.write_letter",
+                        lambda job, tex: ("Dear Acme Hiring Team,\n\nHello.", []))
+    monkeypatch.setattr(taps, "get_taps", lambda: (
+        [{"update_id": 1}], [{"id": "q1", "data": rows[0][1]["callback_data"]}]))
+
+    def broken(letter, company):
+        raise RuntimeError("no LaTeX")
+    monkeypatch.setattr("app.cover_pdf.build_letter_pdf", broken)
+    taps.process_taps(con)
+    assert "PDF failed" in sent[0] and "Dear Acme Hiring Team" in sent[1]
