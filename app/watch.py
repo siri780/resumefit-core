@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from app.applications import TIMEZONE
 from app.notify import format_alert, send_telegram
-from app.scan import connect, scan, scan_email
+from app.scan import connect, scan, scan_email, scan_trackers
 from app.summary import bump, maybe_send_summary, record_alert
 from app.app_emails import sync_applications, sync_message
 from app.taps import process_taps, remember_alert, send_message
@@ -14,6 +14,7 @@ from app.cooldown import LIMIT, PAUSE_DAYS, WINDOW_DAYS, auto_pause, is_paused, 
 INTERVAL_SECONDS = 60
 SCAN_EVERY = timedelta(minutes=4, seconds=30)
 WORKDAY_EVERY = timedelta(minutes=29)
+TRACKER_EVERY = timedelta(minutes=29)
 MAX_ALERTS = 10
 
 
@@ -54,6 +55,13 @@ def run_once():
     mail_matches, mail_errors = scan_email(con)
     errors += mail_errors
     matches = mail_matches + matches
+    if due(con, "trackers", TRACKER_EVERY):
+        try:
+            tracker_matches, tracker_errors = scan_trackers(con)
+        except Exception as error:
+            tracker_matches, tracker_errors = [], [f"Trackers: {type(error).__name__}"]
+        errors += tracker_errors
+        matches = matches + tracker_matches
     try:
         synced = sync_applications(con)
     except Exception as error:
@@ -70,6 +78,7 @@ def run_once():
     if newly_paused:
         send_message(pause_message(newly_paused))
     matches = [m for m in matches if not is_paused(con, m["company"])]
+    matches = skip_applied(matches)
     if first_scan(con):
         for match in matches:
             record_alert(con, match)
@@ -88,6 +97,23 @@ def run_once():
     if errors:
         print("Errors: " + "; ".join(errors), flush=True)
     warn_if_gmail_disconnected(con, errors)
+
+
+def skip_applied(matches):
+    """Drop jobs already in your application tracker (from any source)."""
+    from app.applications import applied_before, applied_keys
+    try:
+        from app.backup import refresh, restore
+        restore()
+        refresh(every_seconds=0)
+        keys = applied_keys()
+    except Exception as error:
+        print(f"Applied-check skipped: {type(error).__name__}", flush=True)
+        return matches
+    kept = [m for m in matches if not applied_before(m, keys)]
+    if len(kept) < len(matches):
+        print(f"Skipped {len(matches) - len(kept)} job(s) you already applied to", flush=True)
+    return kept
 
 
 def first_scan(con):
