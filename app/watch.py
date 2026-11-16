@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 
 from app.applications import TIMEZONE
 from app.notify import format_alert, send_telegram
-from app.scan import connect, scan, scan_email, scan_trackers
+from app.scan import connect, scan, scan_email, scan_hiringcafe, scan_trackers
 from app.summary import bump, maybe_send_summary, record_alert
 from app.app_emails import sync_applications, sync_message
 from app.taps import process_taps, remember_alert, send_message
@@ -15,6 +15,7 @@ INTERVAL_SECONDS = 60
 SCAN_EVERY = timedelta(minutes=4, seconds=30)
 WORKDAY_EVERY = timedelta(minutes=29)
 TRACKER_EVERY = timedelta(minutes=29)
+HIRINGCAFE_EVERY = timedelta(minutes=59)
 MAX_ALERTS = 10
 
 
@@ -62,6 +63,14 @@ def run_once():
             tracker_matches, tracker_errors = [], [f"Trackers: {type(error).__name__}"]
         errors += tracker_errors
         matches = matches + tracker_matches
+    if due(con, "hiringcafe", HIRINGCAFE_EVERY):
+        try:
+            cafe_matches, cafe_errors = scan_hiringcafe(con)
+        except Exception as error:
+            cafe_matches, cafe_errors = [], [f"HiringCafe: {type(error).__name__}"]
+        errors += cafe_errors
+        matches = matches + cafe_matches
+        tell_source_status(con, "HiringCafe", cafe_errors)
     try:
         synced = sync_applications(con)
     except Exception as error:
@@ -97,6 +106,23 @@ def run_once():
     if errors:
         print("Errors: " + "; ".join(errors), flush=True)
     warn_if_gmail_disconnected(con, errors)
+
+
+def tell_source_status(con, name, errors):
+    """Message you only when a source starts or stops working."""
+    status = "blocked" if errors else "ok"
+    key = f"status:{name}"
+    con.execute("CREATE TABLE IF NOT EXISTS state (name TEXT PRIMARY KEY, value TEXT)")
+    row = con.execute("SELECT value FROM state WHERE name = ?", (key,)).fetchone()
+    if row and row[0] == status:
+        return
+    con.execute("INSERT OR REPLACE INTO state VALUES (?, ?)", (key, status))
+    con.commit()
+    if status == "ok":
+        send_message(f"☕ <b>{name}</b> is connected. Its new jobs will show up in your alerts.")
+    else:
+        send_message(f"⚠️ <b>{name}</b> isn't reachable right now ({html.escape(errors[0])}). "
+                     "Your other job sources are fine; I'll tell you if it comes back.")
 
 
 def skip_applied(matches):
