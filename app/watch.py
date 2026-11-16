@@ -16,6 +16,8 @@ SCAN_EVERY = timedelta(minutes=4, seconds=30)
 WORKDAY_EVERY = timedelta(minutes=29)
 TRACKER_EVERY = timedelta(minutes=29)
 HIRINGCAFE_EVERY = timedelta(minutes=59)
+H1B_EVERY = timedelta(days=7)
+BLOCKED_EVERY = timedelta(days=1)   # a source that refused us: retry daily
 MAX_ALERTS = 10
 
 
@@ -51,6 +53,13 @@ def run_once():
     if not due(con, "scan", SCAN_EVERY):
         print(f"[{now}] taps only · tailored={tapped}", flush=True)
         return
+    if due(con, "h1b", H1B_EVERY):
+        from app.h1b import refresh as refresh_h1b
+        try:
+            h1b_errors = refresh_h1b(con)
+        except Exception as error:
+            h1b_errors = [f"H-1B data: {type(error).__name__}"]
+        tell_source_status(con, "H-1B sponsor data", h1b_errors)
     include_workday = due(con, "workday", WORKDAY_EVERY)
     matches, errors, total = scan(include_workday)
     mail_matches, mail_errors = scan_email(con)
@@ -63,7 +72,8 @@ def run_once():
             tracker_matches, tracker_errors = [], [f"Trackers: {type(error).__name__}"]
         errors += tracker_errors
         matches = matches + tracker_matches
-    if due(con, "hiringcafe", HIRINGCAFE_EVERY):
+    if due(con, "hiringcafe", BLOCKED_EVERY if was_blocked(con, "HiringCafe")
+           else HIRINGCAFE_EVERY):
         try:
             cafe_matches, cafe_errors = scan_hiringcafe(con)
         except Exception as error:
@@ -108,6 +118,12 @@ def run_once():
     warn_if_gmail_disconnected(con, errors)
 
 
+def was_blocked(con, name):
+    con.execute("CREATE TABLE IF NOT EXISTS state (name TEXT PRIMARY KEY, value TEXT)")
+    row = con.execute("SELECT value FROM state WHERE name = ?", (f"status:{name}",)).fetchone()
+    return bool(row and row[0] == "blocked")
+
+
 def tell_source_status(con, name, errors):
     """Message you only when a source starts or stops working."""
     status = "blocked" if errors else "ok"
@@ -119,10 +135,12 @@ def tell_source_status(con, name, errors):
     con.execute("INSERT OR REPLACE INTO state VALUES (?, ?)", (key, status))
     con.commit()
     if status == "ok":
-        send_message(f"☕ <b>{name}</b> is connected. Its new jobs will show up in your alerts.")
+        send_message(f"☕ <b>{name}</b> is connected. Its new jobs will show up in your alerts."
+                     if name == "HiringCafe" else
+                     f"✅ <b>{name}</b> loaded. Alerts will now show each company's sponsorship record.")
     else:
         send_message(f"⚠️ <b>{name}</b> isn't reachable right now ({html.escape(errors[0])}). "
-                     "Your other job sources are fine; I'll tell you if it comes back.")
+                     "Your other job sources are fine. I'll check once a day and tell you if it comes back.")
 
 
 def skip_applied(matches):
