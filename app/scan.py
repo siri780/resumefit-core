@@ -128,11 +128,24 @@ MAX_TRACKER_LOOKUPS = 40      # job pages fetched per run (keeps runs short)
 
 def scan_trackers(con):
     """New-grad jobs from the GitHub trackers. Returns (matches, errors)."""
-    from app.trackers import describe, fetch_tracker_jobs
-    jobs, errors = fetch_tracker_jobs()
+    from app.trackers import fetch_tracker_jobs
+    return scan_source(con, fetch_tracker_jobs, "trk")
+
+
+def scan_hiringcafe(con):
+    """Jobs from HiringCafe. Returns (matches, errors)."""
+    from app.hiringcafe import fetch_hiringcafe_jobs
+    return scan_source(con, fetch_hiringcafe_jobs, "hc")
+
+
+def scan_source(con, fetch, marker):
+    """Shared steps for extra sources whose job ids look like 'Company:<marker>-…'."""
+    from app.trackers import describe
+    jobs, errors = fetch()
     if not jobs:
         return [], errors
-    first = con.execute("SELECT 1 FROM seen WHERE id LIKE '%:trk-%' LIMIT 1").fetchone() is None
+    first = con.execute("SELECT 1 FROM seen WHERE id LIKE ? LIMIT 1",
+                        (f"%:{marker}-%",)).fetchone() is None
     new = remember(con, jobs, seed_new_companies=False)
     if first:                     # first time: save quietly, alert only on new ones
         return [], errors
@@ -141,7 +154,8 @@ def scan_trackers(con):
     texts = {}
     matches = []
     for job in new[:MAX_TRACKER_LOOKUPS]:
-        describe(job)
+        if not job["description"]:
+            describe(job)
         if job["description"]:
             base, ats, how = pick_base(job["title"], job["description"],
                                        skills, texts)
