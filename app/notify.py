@@ -37,7 +37,7 @@ def format_alert(match):
            "job-alert email\n" if match.get("source") == "email" else "")
     if match.get("source") == "tracker":
         via = (f"☕ From HiringCafe\n" if match.get("via") == "HiringCafe" else
-               f"📋 From the {e(match.get('via', 'GitHub'))} new-grad tracker\n")
+               f"📋 From the {e(match.get('via', 'GitHub'))} tracker\n")
     return (
         f"🆕 <b>{e(match['company'])}</b> · {e(match['title'])}\n"
         f"📍 {e(match['location'] or 'see job')}\n"
