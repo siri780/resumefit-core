@@ -119,3 +119,12 @@ def test_pause_button_pauses_company(monkeypatch, tmp_path):
     assert taps.process_taps(con) == 0                  # nothing tailored
     assert cooldown.is_paused(con, "capital one")
     assert "Capital One" in sent[0]
+
+
+def test_cover_letter_tap_installs_latex(monkeypatch):
+    """A cover-letter tap builds a PDF, so the workflow must install LaTeX."""
+    from app import taps
+    monkeypatch.setattr(taps, "get_taps", lambda: ([], [{"data": taps.COVER_PREFIX + "x"}]))
+    assert taps.has_taps()
+    monkeypatch.setattr(taps, "get_taps", lambda: ([], [{"data": taps.PAUSE_PREFIX + "x"}]))
+    assert not taps.has_taps()
