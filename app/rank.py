@@ -155,6 +155,30 @@ def required_credentials(text):
     return sorted(set(found))
 
 
+FOREIGN_COUNTRY = re.compile(
+    r"\b(?:united kingdom|uk|england|scotland|london|ireland|dublin|canada|toronto|vancouver|"
+    r"india|bengaluru|bangalore|hyderabad|germany|berlin|netherlands|amsterdam|france|paris|"
+    r"spain|portugal|poland|europe|emea|apac|latam|australia|singapore|mexico|brazil|"
+    r"philippines|israel|japan)\b", re.I)
+US_MENTION = re.compile(r"\b(?:united states|usa|u\.s\.|us-based|us based)\b", re.I)
+VAGUE_PLACE = re.compile(r"^\s*(?:remote|anywhere|hybrid|work from home|wfh)?\s*$", re.I)
+
+
+def hidden_foreign_location(job):
+    """'Remote' job whose description starts with 'United Kingdom | Remote'.
+
+    Only the top of the description is checked (that's where job pages put
+    the location), and any mention of the U.S. there keeps the job.
+    """
+    if not VAGUE_PLACE.match(job.get("location") or ""):
+        return ""
+    head = (job.get("description") or "")[:400]
+    m = FOREIGN_COUNTRY.search(head)
+    if not m or US_MENTION.search(head):
+        return ""
+    return m.group(0)
+
+
 def knockouts(job):
     """Reasons you would be screened out no matter how good the match is."""
     title = f" {job['title'].lower()} "
@@ -162,6 +186,8 @@ def knockouts(job):
     reasons = []
     if outside_us(job.get("location", "")):
         reasons.append(f"Outside the U.S. ({job['location']})")
+    elif hidden_foreign_location(job):
+        reasons.append(f"Outside the U.S. ({hidden_foreign_location(job)}, from the description)")
     if has_any(text, BLOCKERS) or BLOCKER_RE.search(text):
         reasons.append("Requires U.S. citizenship or security clearance")
     if no_sponsorship(text):
