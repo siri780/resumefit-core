@@ -217,6 +217,21 @@ def tier(job):
     return "Stretch" if years <= 5 else "Reach"
 
 
+def sponsor_history(company):
+    """For postings that don't mention visas: use the company's H-1B record."""
+    try:
+        from app.h1b import history
+        found = history(company)
+    except Exception:
+        found = None
+    if not found:
+        return "❔ not mentioned", 50
+    approvals, year = found
+    when = f" (FY{year})" if year else ""
+    return (f"🟢 not mentioned, but {company} had {approvals:,} H-1B approvals{when}",
+            90 if approvals >= 100 else 75)
+
+
 def assess(job, ats_percent):
     """Decide tier, sponsorship, blockers and an overall score for one job."""
     text = job["description"].lower()
@@ -227,7 +242,7 @@ def assess(job, ats_percent):
     elif has_any(text, YES_SPONSOR):
         sponsor, sponsor_points = "✅ sponsorship mentioned", 100
     else:
-        sponsor, sponsor_points = "❔ not mentioned", 50
+        sponsor, sponsor_points = sponsor_history(job.get("company", ""))
     flexible = has_any(text, FLEXIBLE)
     score = round(0.50 * ats_percent + 0.20 * TIER_POINTS[job_tier]
                   + 0.15 * (100 if flexible else 0) + 0.10 * sponsor_points + 5)
