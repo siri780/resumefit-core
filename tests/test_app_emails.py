@@ -126,3 +126,84 @@ def test_gmail_query_includes_linkedin_confirmations():
     from app.app_emails import gmail_query
     q = gmail_query(3)
     assert "-from:linkedin.com" in q and "jobs-noreply@linkedin.com" in q
+
+
+# Real confirmation emails that used to be misread (Nov 2026).
+def test_confirmation_promising_an_interview_is_not_an_invite():
+    body = ("We've received your application for the Data Analyst role. Once we've "
+            "had a chance to review your background, we will reach out to schedule "
+            "an interview as soon as possible if your experience looks like a good fit.")
+    assert classify("Thank you for applying to Deepgram!", body) == "applied"
+
+
+def test_if_you_dont_hear_back_is_not_a_rejection():
+    body = ("We have received your interest application for the Data Scientist "
+            "position. If you do not hear from us within 30 calendar days, it is "
+            "likely that we have decided to move forward with other candidates.")
+    assert classify("Thank You for Your Application to AIR", body) == "applied"
+
+
+def test_real_invites_and_rejections_still_detected():
+    assert classify("Interview invitation", "We'd love to invite you to interview. "
+                    "Please share your availability.") == "interview"
+    assert classify("Your application", "We have decided not to move forward "
+                    "with your application.") == "rejected"
+    assert classify("Update", "Unfortunately, we won’t be moving forward with "
+                    "your application at this time.") == "rejected"
+
+
+def test_roles_read_correctly_from_tricky_emails():
+    assert extract("Update on Salesforce’s Software Engineering MTS",
+                   "If you applied for multiple positions, your other applications "
+                   "may still be in consideration.",
+                   "salesforce@myworkday.com") == ("Salesforce", "Software Engineering MTS")
+    assert extract("Thank you for applying to DoorDash",
+                   "Thank you for applying to DoorDash's Senior Data Scientist, "
+                   "Brand Analytics position! We've received your application.",
+                   "no-reply@doordash.com") == ("DoorDash", "Senior Data Scientist, Brand Analytics")
+    assert extract("Thank you for applying to Robinhood",
+                   "Thanks for applying to Robinhood! Your application has been received.",
+                   "no-reply@robinhood.com")[1] == ""
+    assert extract("Your application for Master's University Grad Data Scientist (USA) at Pinterest",
+                   "", "no-reply@pinterest.com")[1] == "Master's University Grad Data Scientist (USA)"
+
+
+def test_if_shortlisted_assessment_is_not_an_invite():
+    body = ("Thank you for applying for the role of R1526366 - Senior Software Engineer "
+            "(React), IQVIA Digital . We will review your application, and if you are "
+            "shortlisted, you will proceed to the next step, which may include an "
+            "initial screening and/or an online assessment.")
+    assert classify("Thank you for Applying!", body) == "applied"
+    assert extract("Thank you for Applying!", body, "iqvia@myworkday.com")[1] == \
+        "Senior Software Engineer (React)"
+
+
+def test_more_real_rejection_wordings():
+    assert classify("Amazon application: Status update",
+                    "After careful consideration and review of your application, we have "
+                    "decided to progress with other candidates for this role.") == "rejected"
+    assert classify("Update from Reddit",
+                    "After carefully considering your background and qualifications we have "
+                    "decided not to move forward in the process at this time.") == "rejected"
+    assert classify("Your Application",
+                    "we regret to inform you that we have decided to move ahead with other "
+                    "candidates who we feel are a better match.") == "rejected"
+
+
+def test_role_found_after_a_bad_first_match():
+    assert extract("Thank you for applying to Databricks!",
+                   "Thanks for applying to Databricks! Your application for the Software "
+                   "Engineer - New Grad (2027 Start) role has been received.",
+                   "no-reply@us.greenhouse-mail.io") == \
+        ("Databricks", "Software Engineer - New Grad (2027 Start)")
+    assert extract("Thank you for Applying to Amazon!",
+                   "Hi Shirisha, Thanks for applying to Amazon! We've received your "
+                   "application for the Data Scientist III (ID: 10591731) position.",
+                   "noreply@mail.amazon.jobs") == ("Amazon", "Data Scientist III")
+    assert extract("Thank you for your interest in Two Sigma",
+                   "received your application for the following position: Quantitative "
+                   "Researcher: Machine Learning What happens now?",
+                   "noreply@twosigma.com") == ("Two Sigma", "Quantitative Researcher: Machine Learning")
+    assert extract("Thank you for applying to OpenAI",
+                   "Thank you for applying to OpenAI. Your application has been received",
+                   "no-reply@openai.com") == ("OpenAI", "")
