@@ -101,27 +101,55 @@ def from_table(name, page):
 GREENHOUSE_URL = re.compile(r"greenhouse\.io/(?:embed/job_app\?for=)?([\w-]+)/jobs/(\d+)")
 GREENHOUSE_EMBED = re.compile(r"greenhouse\.io/embed/job_app\?.*?for=([\w-]+).*?token=(\d+)")
 LEVER_URL = re.compile(r"jobs\.lever\.co/([\w.-]+)/([0-9a-f-]{36})")
+WORKDAY_URL = re.compile(r"https://([\w-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:[a-z]{2}-[A-Z]{2}/)?([^/?#]+)(/job/[^?#]+)")
+ASHBY_URL = re.compile(r"jobs\.ashbyhq\.com/([^/?#]+)/([0-9a-f-]{36})")
+WORKABLE_URL = re.compile(r"apply\.workable\.com/([^/?#]+)/j/([0-9A-Z]+)", re.I)
+SMARTRECRUITERS_URL = re.compile(r"jobs\.smartrecruiters\.com/([^/?#]+)/(\d+)")
+
+
+def api_description(url):
+    """The job's description from the job site's public API, or '' if unknown."""
+    from app.feeds import clean, get_json
+    m = GREENHOUSE_URL.search(url) or GREENHOUSE_EMBED.search(url)
+    if m:
+        return clean(get_json(f"https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs/{m.group(2)}").get("content"))
+    m = LEVER_URL.search(url)
+    if m:
+        data = get_json(f"https://api.lever.co/v0/postings/{m.group(1)}/{m.group(2)}")
+        extra = " ".join(i.get("content", "") for i in data.get("lists", []))
+        return clean(data.get("descriptionPlain", "") + " " + extra)
+    m = WORKDAY_URL.search(url)
+    if m:
+        tenant, pod, site, path = m.groups()
+        data = get_json(f"https://{tenant}.{pod}.myworkdayjobs.com/wday/cxs/{tenant}/{site}{path}")
+        return clean((data.get("jobPostingInfo") or {}).get("jobDescription"))
+    m = ASHBY_URL.search(url)
+    if m:
+        board = get_json(f"https://api.ashbyhq.com/posting-api/job-board/{m.group(1)}")
+        job = next((j for j in board.get("jobs", []) if j.get("id") == m.group(2)), {})
+        return clean(job.get("descriptionPlain") or job.get("descriptionHtml"))
+    m = WORKABLE_URL.search(url)
+    if m:
+        data = get_json(f"https://apply.workable.com/api/v2/accounts/{m.group(1)}/jobs/{m.group(2)}")
+        return clean(" ".join(data.get(k) or "" for k in ("description", "requirements", "benefits")))
+    m = SMARTRECRUITERS_URL.search(url)
+    if m:
+        data = get_json(f"https://api.smartrecruiters.com/v1/companies/{m.group(1)}/postings/{m.group(2)}")
+        sections = (data.get("jobAd") or {}).get("sections") or {}
+        return clean(" ".join((v or {}).get("text", "") for v in sections.values()))
+    return ""
 
 
 def describe(job):
-    """Fill in the description: company job APIs first, then the page itself."""
-    from app.feeds import clean, get_json
+    """Fill in the description: the job site's API first, then the page itself."""
     from app.mail_alerts import add_description
-    url = job["url"]
     try:
-        m = GREENHOUSE_URL.search(url) or GREENHOUSE_EMBED.search(url)
-        if m:
-            data = get_json(f"https://boards-api.greenhouse.io/v1/boards/{m.group(1)}/jobs/{m.group(2)}")
-            job["description"] = clean(data.get("content"))
-            return job
-        m = LEVER_URL.search(url)
-        if m:
-            data = get_json(f"https://api.lever.co/v0/postings/{m.group(1)}/{m.group(2)}")
-            extra = " ".join(i.get("content", "") for i in data.get("lists", []))
-            job["description"] = clean(data.get("descriptionPlain", "") + " " + extra)
-            return job
+        text = api_description(job["url"])
     except Exception:
-        pass                                   # fall back to reading the page
+        text = ""                              # fall back to reading the page
+    if len(text) > 200:
+        job["description"] = text
+        return job
     return add_description(job)
 
 
