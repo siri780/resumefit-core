@@ -187,3 +187,44 @@ def test_watcher_drops_applied_jobs(monkeypatch):
     jobs = [{"company": "Amazon", "title": "Data Scientist III"},
             {"company": "Amazon", "title": "Data Scientist II"}]
     assert watch.skip_applied(jobs) == [jobs[1]]
+
+
+def test_bamboohr_rippling_and_short_links(monkeypatch):
+    import requests
+    calls = []
+
+    def fake_get_json(url):
+        calls.append(url)
+        if "bamboohr" in url:
+            return {"result": {"jobOpening": {"description": "<p>" + LONG + "</p>"}}}
+        return {"description": {"company": LONG, "role": "SQL"}}
+
+    class Head:
+        url = "https://alloptions.bamboohr.com/careers/86"
+
+    monkeypatch.setattr("app.feeds.get_json", fake_get_json)
+    monkeypatch.setattr(requests, "head", lambda url, **kw: Head())
+    job = describe({"url": "https://go.vansh.nyc/1B3", "description": ""})
+    assert job["url"] == "https://alloptions.bamboohr.com/careers/86"     # short link followed
+    assert "Build models" in job["description"]
+    job = describe({"url": "https://ats.rippling.com/ams/jobs/26e20c0b-d1ba-4a4e-8a04-707855517f49",
+                    "description": ""})
+    assert "Build models" in job["description"]
+    assert calls == ["https://alloptions.bamboohr.com/careers/86/detail",
+                     "https://api.rippling.com/platform/api/ats/v1/board/ams/jobs/26e20c0b-d1ba-4a4e-8a04-707855517f49"]
+
+
+def test_same_job_with_new_grad_prefix_is_one_alert():
+    jobs = [{"company": "All Options", "title": "Graduate Quantitative Researcher"},
+            {"company": "All Options", "title": "New Grad 2027: Quantitative Researcher"},
+            {"company": "Fortinet", "title": "Early Careers: Software Engineer"},
+            {"company": "Fortinet", "title": "Embedded Software Engineer - Early Careers"}]
+    assert [j["title"] for j in dedupe(jobs)] == [
+        "Graduate Quantitative Researcher", "Early Careers: Software Engineer",
+        "Embedded Software Engineer - Early Careers"]
+
+
+def test_uk_only_location_is_skipped():
+    from app.rank import outside_us
+    assert outside_us("Remote in UK") and outside_us("UK")
+    assert not outside_us("Ukiah, CA") and not outside_us("Remote in USA")
