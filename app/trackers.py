@@ -105,6 +105,7 @@ WORKDAY_URL = re.compile(r"https://([\w-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:[a-z
 ASHBY_URL = re.compile(r"jobs\.ashbyhq\.com/([^/?#]+)/([0-9a-f-]{36})")
 WORKABLE_URL = re.compile(r"apply\.workable\.com/([^/?#]+)/j/([0-9A-Z]+)", re.I)
 SMARTRECRUITERS_URL = re.compile(r"jobs\.smartrecruiters\.com/([^/?#]+)/(\d+)")
+ORACLE_URL = re.compile(r"https://([\w.-]+\.oraclecloud\.com)/hcmUI/CandidateExperience/[a-z]{2}/sites/([\w-]+)/job/(\d+)")
 
 
 def api_description(url):
@@ -137,6 +138,14 @@ def api_description(url):
         data = get_json(f"https://api.smartrecruiters.com/v1/companies/{m.group(1)}/postings/{m.group(2)}")
         sections = (data.get("jobAd") or {}).get("sections") or {}
         return clean(" ".join((v or {}).get("text", "") for v in sections.values()))
+    m = ORACLE_URL.search(url)
+    if m:
+        host, site, job_id = m.groups()
+        data = get_json(f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+                        f"?expand=all&onlyData=true&finder=ById;Id=%22{job_id}%22,siteNumber={site}")
+        item = (data.get("items") or [{}])[0]
+        return clean(" ".join(item.get(k) or "" for k in (
+            "ExternalDescriptionStr", "ExternalResponsibilitiesStr", "ExternalQualificationsStr")))
     return ""
 
 
