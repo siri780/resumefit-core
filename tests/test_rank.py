@@ -31,10 +31,25 @@ def test_citizenship_is_blocked():
     assert result["blocked"] and not result["show"]
 
 
-def test_reach_needs_high_match():
+def test_senior_roles_are_skipped_even_with_a_high_match():
     senior = job("Senior Data Scientist")
     assert not assess(senior, 70)["show"]
-    assert assess(senior, 80)["show"]
+    assert not assess(senior, 95)["show"]          # new-grad filter
+    assert any("above new-grad level" in r for r in assess(senior, 95)["blocked"])
+
+
+def test_new_grad_filter():
+    from app.rank import too_senior
+    above = [("Sr. Software Engineer", ""), ("Lead Data Scientist", ""),
+             ("Software Engineering SMTS", ""), ("Data Scientist III", ""),
+             ("Software Engineer 3", ""), ("Data Scientist", "5+ years of experience"),
+             ("Data Scientist II", "3+ years of experience")]
+    within = [("S3 Software Engineer", ""), ("Web3 Developer", ""), ("Data Scientist I", ""),
+              ("Software Engineer, New Grad 2027", ""), ("Leadership Program Analyst", ""),
+              ("Data Scientist", "1+ years of experience"),
+              ("Data Scientist II", "3+ years of experience or a master's degree and 1 year")]
+    assert all(too_senior({"title": t}, d.lower()) for t, d in above)
+    assert not any(too_senior({"title": t}, d.lower()) for t, d in within)
 
 def test_foreign_locations_are_skipped():
     assert not is_relevant(job("Data Scientist", location="Warsaw; Poznan"))
