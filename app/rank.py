@@ -121,7 +121,8 @@ FOREIGN_WORDS = re.compile(r"\b(" + "|".join([
     "abu dhabi", "cairo", "lagos", "nairobi", "karachi", "lahore", "islamabad", "dhaka",
     "colombo", "kathmandu", "lima", "quito", "montevideo", "cape town", "johannesburg",
     "tallinn", "riga", "vilnius", "sofia", "belgrade", "zagreb", "kyiv", "kiev",
-    "amman", "beirut", "casablanca", "almaty", "tbilisi", "yerevan", "baku"]) + r")\b")
+    "amman", "beirut", "casablanca", "almaty", "tbilisi", "yerevan", "baku", "uk",
+    "great britain", "wales", "northern ireland"]) + r")\b")
 
 
 def outside_us(location):
