@@ -31,10 +31,10 @@ Data Visualization,data visualization|data visualisation|visualization|dashboard
 Data Analysis,data analysis|data analytics|analytics|exploratory data analysis|eda,analytics,no
 Data Mining,data mining,analytics,no
 Predictive Modeling,predictive modeling|predictive modelling|predictive models|predictive model|predictive analytics,ml,no
-Recommendation Systems,recommendation systems|recommendation system|recommender systems|recommender system|recommendation engine|recommendation models|recsys,ml,no
+Recommendation Systems,recommendation systems|recommendation system|recommender systems|recommender system|recommendation engine|recommendation models|recommenders|recommender|recsys,ml,no
 Model Deployment,model deployment|deploy models|deployed|mlops|production models,engineering,no
 ETL,etl|elt|data pipeline|data pipelines,engineering,no
-Data Warehousing,data warehouse|data warehousing|snowflake|redshift|bigquery,engineering,no
+Data Warehousing,data warehouse|data warehousing,engineering,no
 Data Modeling,data modeling|data modelling|star schema,engineering,no
 Big Data,big data|large-scale data|large scale data,engineering,no
 Spark,spark|pyspark|apache spark|spark mllib,tools,no
@@ -84,3 +84,8 @@ Hugging Face,hugging face|huggingface|transformers library,library,no
 Data Quality,data quality|data validation|data integrity|data-quality,engineering,no
 Target Trial Emulation,target trial emulation|target-trial emulation|target trial,stats,no
 Cohort Analysis,cohort analysis|cohort analyses|cohort study|cohort studies,analytics,no
+Snowflake,snowflake,tools,no
+Redshift,redshift|amazon redshift,tools,no
+dbt,dbt,tools,no
+Looker,looker,tools,no
+Kubeflow,kubeflow,tools,no
