@@ -79,6 +79,9 @@ def test_describe_uses_each_job_sites_api(monkeypatch):
             return {"description": LONG, "requirements": "Statistics"}
         if "smartrecruiters" in url:
             return {"jobAd": {"sections": {"jobDescription": {"text": LONG}}}}
+        if "oraclecloud" in url:
+            return {"items": [{"ExternalDescriptionStr": "<p>" + LONG + "</p>",
+                               "ExternalQualificationsStr": "Python"}]}
         return {}
 
     monkeypatch.setattr("app.feeds.get_json", fake_get_json)
@@ -89,6 +92,7 @@ def test_describe_uses_each_job_sites_api(monkeypatch):
         "https://jobs.ashbyhq.com/triumph/0d6c5f3e-1111-2222-3333-444455556666",
         "https://apply.workable.com/acme/j/AB12CD34EF/",
         "https://jobs.smartrecruiters.com/Visa/744000098765432-data-scientist",
+        "https://edel.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_2001/job/24960",
     ]
     for url in urls:
         job = describe({"url": url, "description": ""})
@@ -100,6 +104,8 @@ def test_describe_uses_each_job_sites_api(monkeypatch):
         "https://api.ashbyhq.com/posting-api/job-board/triumph",
         "https://apply.workable.com/api/v2/accounts/acme/jobs/AB12CD34EF",
         "https://api.smartrecruiters.com/v1/companies/Visa/postings/744000098765432",
+        "https://edel.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+        "?expand=all&onlyData=true&finder=ById;Id=%2224960%22,siteNumber=CX_2001",
     ]
 
 
