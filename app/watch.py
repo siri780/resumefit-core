@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from app.applications import TIMEZONE
 from app.notify import format_alert, send_telegram
 from app.scan import connect, scan, scan_email, scan_hiringcafe, scan_trackers
+from app.scorecard import maybe_send_scorecard
 from app.summary import bump, maybe_send_summary, record_alert
 from app.app_emails import sync_applications, sync_message
 from app.taps import process_taps, remember_alert, send_message
@@ -47,6 +48,7 @@ def run_once():
     bump(con, "tailored", tapped)
     try:
         maybe_send_summary(con, send_message)
+        maybe_send_scorecard(con, send_message)
     except Exception as error:
         print(f"Summary failed: {error}", flush=True)
     now = datetime.now(TIMEZONE).strftime("%H:%M")
