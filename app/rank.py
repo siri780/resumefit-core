@@ -179,6 +179,26 @@ def hidden_foreign_location(job):
     return m.group(0)
 
 
+# New-grad filter: titles that screen out a May 2027 graduate.
+SENIOR_TITLE = re.compile(r"\b(?:senior|sr\.?|lead|tech lead|smts|lmts|pmts)\b", re.I)
+HIGH_LEVEL_TITLE = re.compile(
+    r"\b(?:iii|iv)\b|\b(?:engineer|scientist|analyst|developer|researcher)\s+(?:[3-9])\b", re.I)
+MASTERS_OPTION = re.compile(r"\bmaster'?s?\b|\bm\.?s\.? (?:degree|in)\b|\bgraduate degree\b|\bphd\b", re.I)
+
+
+def too_senior(job, text):
+    """Why a role is above new-grad level ('' if it's within reach)."""
+    title = job["title"]
+    if SENIOR_TITLE.search(title):
+        return "Senior/lead title (above new-grad level)"
+    if HIGH_LEVEL_TITLE.search(title):
+        return "Level III+ title (above new-grad level)"
+    years = years_required(text)
+    if years is not None and (years >= 4 or (years == 3 and not MASTERS_OPTION.search(text))):
+        return f"Asks for {years}+ years of experience"
+    return ""
+
+
 def knockouts(job):
     """Reasons you would be screened out no matter how good the match is."""
     title = f" {job['title'].lower()} "
@@ -201,9 +221,10 @@ def knockouts(job):
         reasons.append("Requires " + ", ".join(creds))
     if has_any(title, LONGSHOT_WORDS):
         reasons.append("Staff/principal/manager level")
-    years = years_required(text)
-    if years is not None and years >= 8:
-        reasons.append(f"Requires {years}+ years of experience")
+    else:
+        senior = too_senior(job, text)
+        if senior:
+            reasons.append(senior)
     return reasons
 
 
