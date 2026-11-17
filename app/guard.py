@@ -2,12 +2,23 @@ import re
 
 from app.ats import find_skills, latex_to_text
 
-NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
+NUMBER = re.compile(r"\d+(?:[.,]\d+)*(?:\s?(?:million|billion|thousand|[kmb])(?![a-z]))?", re.I)
+SHORT = {"thousand": "k", "million": "m", "billion": "b"}
 
 
 def numbers_in(text):
-    """Return the set of numbers in text, e.g. {'40', '5863', '92.07'}."""
-    return {n.replace(",", "") for n in NUMBER.findall(text)}
+    """Return the set of numbers in text, e.g. {'40', '5863', '92.07', '14m'}.
+
+    '3 million' and '14M' keep their size ('3m', '14m'), so '3 million
+    patients' doesn't pass just because '3' appears elsewhere on the resume.
+    """
+    found = set()
+    for n in NUMBER.findall(text):
+        n = n.replace(",", "").replace(" ", "").lower()
+        for word, letter in SHORT.items():
+            n = n.replace(word, letter)
+        found.add(n)
+    return found
 
 
 def check_numbers(original, new):
@@ -37,9 +48,10 @@ def check_latex(new):
     return problems
 
 
-def check_length(original, new, max_ratio=1.25):
-    """The new bullet can be at most 25% longer than the original."""
-    if len(new) > len(original) * max_ratio:
+def check_length(original, new, max_ratio=1.25, slack=30):
+    """The new bullet can be at most 25% longer than the original (short
+    bullets may grow by up to 30 characters, about 5 words)."""
+    if len(new) > max(len(original) * max_ratio, len(original) + slack):
         return [f"Too long: {len(new)} vs {len(original)} characters"]
     return []
 
