@@ -40,6 +40,16 @@ def record_alert(con, match):
                  match["title"], match["url"]))
     con.commit()
     bump(con, "alerts")
+    bump(con, "source:" + source_name(match))
+
+
+def source_name(match):
+    """Where an alert came from, for the weekly scorecard."""
+    if match.get("source") == "email":
+        return "job emails"
+    if match.get("source") == "tracker":
+        return match.get("via") or "trackers"
+    return "company sites"
 
 
 def tracker_counts(day):
