@@ -46,6 +46,14 @@ def _strip_tracking(url):
     return re.sub(r"[?&]utm_source=[^&]*", "", url).rstrip("?&")
 
 
+PREFIX = re.compile(r"^\s*(?:new grad(?:uate)?(?:\s*20\d\d)?|20\d\d new grad|early careers?)\s*:\s*", re.I)
+
+
+def clean_title(title):
+    """'New Grad 2027: Quantitative Researcher' -> 'Quantitative Researcher'."""
+    return PREFIX.sub("", title).strip() or title
+
+
 def from_listings(name, listings, now=None):
     """Recent, active, sponsorship-possible jobs from a listings.json file."""
     now = now or time.time()
@@ -105,6 +113,9 @@ WORKDAY_URL = re.compile(r"https://([\w-]+)\.(wd\d+)\.myworkdayjobs\.com/(?:[a-z
 ASHBY_URL = re.compile(r"jobs\.ashbyhq\.com/([^/?#]+)/([0-9a-f-]{36})")
 WORKABLE_URL = re.compile(r"apply\.workable\.com/([^/?#]+)/j/([0-9A-Z]+)", re.I)
 SMARTRECRUITERS_URL = re.compile(r"jobs\.smartrecruiters\.com/([^/?#]+)/(\d+)")
+BAMBOO_URL = re.compile(r"https://([\w-]+)\.bamboohr\.com/careers/(\d+)")
+RIPPLING_URL = re.compile(r"ats\.rippling\.com/([^/?#]+)/jobs/([0-9a-f-]{36})")
+SHORT_LINK = re.compile(r"https?://(?:go\.vansh\.nyc|lnkd\.in|bit\.ly|tinyurl\.com)/", re.I)
 ORACLE_URL = re.compile(r"https://([\w.-]+\.oraclecloud\.com)/hcmUI/CandidateExperience/[a-z]{2}/sites/([\w-]+)/job/(\d+)")
 
 
@@ -138,6 +149,16 @@ def api_description(url):
         data = get_json(f"https://api.smartrecruiters.com/v1/companies/{m.group(1)}/postings/{m.group(2)}")
         sections = (data.get("jobAd") or {}).get("sections") or {}
         return clean(" ".join((v or {}).get("text", "") for v in sections.values()))
+    m = BAMBOO_URL.search(url)
+    if m:
+        data = get_json(f"https://{m.group(1)}.bamboohr.com/careers/{m.group(2)}/detail")
+        opening = (data.get("result") or {}).get("jobOpening") or {}
+        return clean(opening.get("description"))
+    m = RIPPLING_URL.search(url)
+    if m:
+        data = get_json(f"https://api.rippling.com/platform/api/ats/v1/board/{m.group(1)}/jobs/{m.group(2)}")
+        desc = data.get("description") or {}
+        return clean(" ".join(desc.values()) if isinstance(desc, dict) else desc)
     m = ORACLE_URL.search(url)
     if m:
         host, site, job_id = m.groups()
@@ -149,9 +170,20 @@ def api_description(url):
     return ""
 
 
+def real_url(url):
+    """Follow a short link (go.vansh.nyc/…) to the actual job page."""
+    if not SHORT_LINK.match(url):
+        return url
+    try:
+        return requests.head(url, headers=HEADERS, timeout=TIMEOUT, allow_redirects=True).url
+    except requests.RequestException:
+        return url
+
+
 def describe(job):
     """Fill in the description: the job site's API first, then the page itself."""
     from app.mail_alerts import add_description
+    job["url"] = real_url(job["url"])
     try:
         text = api_description(job["url"])
     except Exception:
@@ -166,7 +198,9 @@ def dedupe(jobs):
     """The same role is often on several trackers: keep the first."""
     seen, out = set(), []
     for job in jobs:
-        key = (job["company"].strip().lower(), job["title"].strip().lower())
+        title = re.sub(r"\b(?:graduate|new grad|university grad(?:uate)?|early careers?|20\d\d)\b", " ",
+                       clean_title(job["title"]).lower())
+        key = (job["company"].strip().lower(), re.sub(r"[^a-z0-9]+", " ", title).strip())
         if key not in seen:
             seen.add(key)
             out.append(job)
